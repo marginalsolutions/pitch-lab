@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0d1410">
+<title>Field Crew</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Graduate&family=Barlow+Condensed:wght@500;700&display=swap">
+<style>
+/* Layout: one screen. Scoreboard on top, the field fills the middle, the sideline tray holds the next prop. Night-game look, single theme. */
+:root{
+  --night:#0d1410;      /* stadium dark */
+  --turf:#2f7a3b;       /* field green */
+  --turf2:#2a6e35;      /* alternate stripe */
+  --chalk:#f3f1e6;      /* yard-line white */
+  --gold:#f4b73b;       /* beer / accent */
+  --red:#e2553f;        /* miss */
+  --display:"Graduate","Rockwell","Georgia",serif;
+  --body:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--night);color:var(--chalk);font-family:var(--body);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column;gap:8px;padding-block:8px;
+  padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));
+  max-width:520px;margin:0 auto}
+.board{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  background:#000;border:2px solid #333;border-radius:6px;padding:6px 12px}
+.board .name{font-family:var(--display);font-size:18px;letter-spacing:.04em;color:var(--chalk)}
+.stat{display:flex;align-items:center;gap:6px;font-family:var(--display);font-size:22px;color:var(--gold);font-variant-numeric:tabular-nums}
+.stat small{font-family:var(--body);font-size:13px;color:#aab;letter-spacing:.08em;text-transform:uppercase}
+.mug{width:20px;height:22px;flex:none}
+#field{position:relative;flex:1;min-height:0;border:3px solid var(--chalk);border-radius:4px;overflow:hidden;touch-action:none;
+  background:var(--turf)}
+.zone{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-size:clamp(16px,6vw,28px);letter-spacing:.3em;color:rgba(243,241,230,.55);background:#1f5a2a}
+.stripe{position:absolute;left:0;right:0;background:var(--turf2)}
+.line{position:absolute;left:0;right:0;height:2px;background:rgba(243,241,230,.8);transform:translateY(-1px)}
+.hash{position:absolute;width:8px;height:2px;background:rgba(243,241,230,.7);transform:translateY(-1px)}
+.num{position:absolute;font-family:var(--display);font-size:clamp(11px,3.4vw,16px);color:rgba(243,241,230,.8);transform:translate(-50%,-50%) rotate(90deg)}
+.num.r{transform:translate(-50%,-50%) rotate(-90deg)}
+.target{position:absolute;border:3px dashed var(--gold);border-radius:6px;background:rgba(244,183,59,.12);
+  display:flex;align-items:center;justify-content:center;text-align:center;color:var(--gold);font-weight:700;font-size:13px;
+  letter-spacing:.06em;text-transform:uppercase;animation:pulse 1.2s ease-in-out infinite;pointer-events:none}
+@keyframes pulse{50%{background:rgba(244,183,59,.28)}}
+.prop{position:absolute;border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;
+  font-weight:700;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:#111;line-height:1;padding:2px;
+  box-shadow:0 3px 0 rgba(0,0,0,.35),inset 0 0 0 2px rgba(0,0,0,.25)}
+.prop.live{cursor:grab;touch-action:none;z-index:5}
+.prop.drag{cursor:grabbing;box-shadow:0 12px 18px rgba(0,0,0,.5),inset 0 0 0 2px rgba(0,0,0,.25);z-index:20}
+.prop.placed{pointer-events:none}
+.tray{height:112px;flex:none;position:relative;border-radius:6px;background:#1a211c;border:2px solid #2d3a30;
+  display:flex;flex-direction:column;justify-content:flex-start;padding:6px 10px}
+.tray .lbl{font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:#9fb3a3}
+.tray .lbl b{color:var(--chalk)}
+.pop{position:absolute;transform:translate(-50%,-50%);font-family:var(--display);font-size:22px;color:var(--gold);
+  text-shadow:0 2px 0 #000;pointer-events:none;z-index:30;animation:rise 1s ease-out forwards;white-space:nowrap}
+.pop.miss{color:var(--red)}
+@keyframes rise{to{transform:translate(-50%,-160%);opacity:0}}
+.screen{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  text-align:center;background:rgba(13,20,16,.94);padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.screen h1{font-family:var(--display);font-size:clamp(40px,13vw,64px);margin:0;line-height:1;color:var(--chalk);text-wrap:balance}
+.screen h2{font-family:var(--display);font-size:clamp(26px,8vw,40px);margin:0;color:var(--gold)}
+.screen p{font-size:20px;margin:0;max-width:30ch;color:#cfd8d0;line-height:1.3}
+.screen .note{font-size:18px;color:var(--gold)}
+.big{font-family:var(--display);font-size:22px;letter-spacing:.06em;background:var(--gold);color:#111;border:0;border-radius:8px;
+  padding:14px 32px;cursor:pointer;box-shadow:0 4px 0 #a97818}
+.big:active{transform:translateY(3px);box-shadow:0 1px 0 #a97818}
+.big:focus-visible{outline:3px solid var(--chalk);outline-offset:3px}
+.mugs{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;max-width:300px}
+.mugs .mug{width:26px;height:28px}
+[hidden]{display:none!important}
+.banner{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);z-index:40;pointer-events:none;
+  font-family:var(--display);font-size:clamp(34px,11vw,52px);color:var(--gold);text-shadow:0 3px 0 #000,0 0 24px rgba(0,0,0,.7);
+  white-space:nowrap;animation:slam .5s ease-out}
+.banner small{display:block;font-family:var(--body);font-weight:700;font-size:18px;letter-spacing:.1em;color:var(--chalk);text-align:center}
+@keyframes slam{from{transform:translate(-50%,-50%) scale(1.8);opacity:0}}
+.tray.strike{border-color:var(--gold);background:repeating-linear-gradient(135deg,#1a211c 0 14px,#232c25 14px 28px)}
+.tray.strike .lbl b{color:var(--gold)}
+.stat.hurry small{color:var(--red)}
+@media (prefers-reduced-motion:reduce){.target,.pop,.banner{animation:none}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mug" viewBox="0 0 20 22">
+    <path d="M2 6h12v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#f4b73b"/>
+    <path d="M14 9h2.5a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H14" fill="none" stroke="#f4b73b" stroke-width="2"/>
+    <path d="M1.5 6.5C1 3.5 4 2 6 3c1-2 5-2 6 0 2-.5 3.5 1 2.5 3.5z" fill="#fffaf0"/>
+  </symbol>
+</svg>
+
+<div id="app">
+  <div class="board">
+    <span class="name">FIELD CREW</span>
+    <span class="stat"><small id="count">Prop 1/6</small></span>
+    <span class="stat"><svg class="mug"><use href="#mug"/></svg><span id="beers">0</span></span>
+  </div>
+  <div id="field"></div>
+  <div class="tray" id="tray"><div class="lbl">Sideline · next up: <b id="next">—</b></div></div>
+</div>
+
+<div class="screen" id="start">
+  <h1>Field Crew</h1>
+  <p>Set the show: drag each prop from the sideline onto its glowing spot. The closer you get, the more beers you win.</p>
+  <p>Then strike it: when the show ends, drag every prop off the field before the clock runs out.</p>
+  <p class="note">Have a great last show.</p>
+  <button class="big" id="go">Play</button>
+</div>
+<div class="screen" id="end" hidden>
+  <h2 id="endhead">That's a wrap!</h2>
+  <h1 id="final">0 beers</h1>
+  <div class="mugs" id="mugs"></div>
+  <p id="tally"></p>
+  <p id="best"></p>
+  <button class="big" id="again">Play again</button>
+</div>
+
+<script>
+const PROPS=[
+  {n:"Stage Platform",w:.40,h:.13,c:"#d9d3c3"},
+  {n:"Backdrop",w:.12,h:.30,c:"#7fb7e8"},
+  {n:"Drum Riser",w:.28,h:.15,c:"#e89a6b"},
+  {n:"Flag Rack",w:.30,h:.07,c:"#e0d36a"},
+  {n:"Prop Tower",w:.16,h:.16,c:"#c79be3"},
+  {n:"Ramp",w:.24,h:.09,c:"#9fd59a"},
+  {n:"Speaker",w:.11,h:.11,c:"#bdbdbd"},
+  {n:"Big Banner",w:.44,h:.06,c:"#f08a9e"}
+];
+const ROUNDS=6,STRIKE_SECS=15,ALL_CLEAR=3,MAX=ROUNDS*3+ROUNDS+ALL_CLEAR;
+const field=document.getElementById('field'),tray=document.getElementById('tray');
+const $=id=>document.getElementById(id);
+let beers=0,round=0,queue=[],target=null,live=null,phase='set',setBeers=0,cleared=0,timer=null,timeLeft=0;
+
+let turf;
+function drawField(){
+  if(turf)turf.remove();turf=document.createElement('div');turf.style.cssText='position:absolute;inset:0;pointer-events:none';field.prepend(turf);
+    const H=turf.clientHeight,W=turf.clientWidth,y=v=>v/120*H;
+  for(let i=0;i<20;i+=2){const s=document.createElement('div');s.className='stripe';s.style.top=y(10+i*5)+'px';s.style.height=y(5)+'px';turf.appendChild(s)}
+  [[0,'CREW'],[110,'FIELD']].forEach(([t,txt])=>{const z=document.createElement('div');z.className='zone';z.style.top=y(t)+'px';z.style.height=y(10)+'px';z.textContent=txt;turf.appendChild(z)});
+  for(let yd=10;yd<=110;yd+=5){
+    const l=document.createElement('div');l.className='line';l.style.top=y(yd)+'px';turf.appendChild(l);
+    const n=yd-10,lab=n<=50?n:100-n;
+    if(n%10===0&&n>0&&n<100){
+      [[.12,''],[.88,'r']].forEach(([x,c])=>{const t=document.createElement('div');t.className='num '+c;t.style.left=x*W+'px';t.style.top=y(yd)+'px';t.textContent=lab;turf.appendChild(t)});
+    }
+  }
+  for(let yd=11;yd<110;yd++){if(yd%5===0)continue;[.38,.62].forEach(x=>{const h=document.createElement('div');h.className='hash';h.style.left=(x*W-4)+'px';h.style.top=y(yd)+'px';turf.appendChild(h)})}
+}
+
+function startGame(){
+  $('start').hidden=true;$('end').hidden=true;
+  beers=0;round=0;setBeers=0;cleared=0;phase='set';clearInterval(timer);$('beers').textContent=0;
+  tray.classList.remove('strike');document.querySelector('.board .stat').classList.remove('hurry');
+  document.querySelectorAll('body>.prop,.banner').forEach(e=>e.remove());
+  field.querySelectorAll('.prop,.target,.pop').forEach(e=>e.remove());
+  queue=[...PROPS].sort(()=>Math.random()-.5).slice(0,ROUNDS);
+  drawField();nextProp();
+}
+
+function nextProp(){
+  if(round>=ROUNDS)return showTime();
+  const p=queue[round];round++;
+  $('count').textContent=`Prop ${round}/${ROUNDS}`;$('next').textContent=p.n;
+  const W=field.clientWidth,H=field.clientHeight,pw=p.w*W,ph=p.h*W;
+  // spot somewhere between the 10s, inside the sidelines
+  const top=H*(20/120),bot=H*(100/120);
+  let tx,ty,tries=0;
+  do{tx=8+Math.random()*(W-pw-16);ty=top+Math.random()*Math.max(1,bot-top-ph);tries++}
+  while(tries<40&&[...field.querySelectorAll('.placed')].some(e=>overlap(e,tx,ty,pw,ph)));
+  target={x:tx+pw/2,y:ty+ph/2,w:pw,h:ph};
+  const t=document.createElement('div');t.className='target';t.id='tgt';
+  Object.assign(t.style,{left:tx+'px',top:ty+'px',width:pw+'px',height:ph+'px'});t.textContent=p.w>.2?'Here':'';
+  field.appendChild(t);
+  // prop on the sideline tray
+  const el=document.createElement('div');el.className='prop live';el.textContent=p.n;
+  const s=Math.min(1,(tray.clientWidth-20)/pw,70/ph);
+  el.dataset.s=s;el.style.width=pw+'px';el.style.height=ph+'px';el.style.background=p.c;
+  const tr=tray.getBoundingClientRect();
+  el.style.position='fixed';
+  el.style.left=(tr.left+tr.width/2-pw/2)+'px';el.style.top=(tr.top+28+35-ph/2)+'px';
+  el.style.transform=`scale(${s})`;
+  el.home={left:el.style.left,top:el.style.top};
+  document.body.appendChild(el);live=el;bindDrag(el);
+}
+function overlap(e,x,y,w,h){const a={l:e.offsetLeft,t:e.offsetTop,r:e.offsetLeft+e.offsetWidth,b:e.offsetTop+e.offsetHeight};
+  return !(x+w<a.l-6||x>a.r+6||y+h<a.t-6||y>a.b+6)}
+
+function bindDrag(el){
+  let ox=0,oy=0;
+  el.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    if(el.parentNode===field){const r=el.getBoundingClientRect();el.style.position='fixed';el.style.left=r.left+'px';el.style.top=r.top+'px';document.body.appendChild(el)}
+    el.setPointerCapture(e.pointerId);el.classList.add('drag');el.style.transform='scale(1)';
+    const w=el.offsetWidth,h=el.offsetHeight;ox=w/2;oy=h*.75; // hold below finger so you can see it
+    move(e);
+    function move(ev){el.style.left=(ev.clientX-ox)+'px';el.style.top=(ev.clientY-oy-h*.25-20)+'px'}
+    el.onpointermove=move;
+    el.onpointerup=el.onpointercancel=()=>{el.onpointermove=el.onpointerup=el.onpointercancel=null;el.classList.remove('drag');drop(el)};
+  });
+}
+
+function drop(el){
+  if(phase==='strike')return dropStrike(el);
+  if(phase!=='set')return;
+  const fr=field.getBoundingClientRect(),r=el.getBoundingClientRect();
+  const cx=r.left+r.width/2-fr.left,cy=r.top+r.height/2-fr.top;
+  const W=fr.width,d=Math.hypot(cx-target.x,cy-target.y)/W;
+  let pts=0,msg='';
+  if(d<.03){pts=3;msg='PERFECT +3'}else if(d<.065){pts=2;msg='NICE +2'}else if(d<.12){pts=1;msg='CLOSE +1'}
+  if(!pts){
+    pop(cx,cy,cx>0&&cy>0&&cx<W&&cy<fr.height?'TOO FAR':'ON THE FIELD!',true);
+    el.style.transition='left .25s,top .25s,transform .25s';Object.assign(el.style,el.home);el.style.transform=`scale(${el.dataset.s})`;
+    setTimeout(()=>el.style.transition='',260);return;
+  }
+  // set it down on the field where it landed (nudged onto the spot for a perfect)
+  const tg=$('tgt');tg&&tg.remove();
+  el.classList.remove('live');el.classList.add('placed');el.style.position='absolute';
+  const lx=pts===3?target.x:cx,ly=pts===3?target.y:cy;
+  el.style.left=(lx-target.w/2)+'px';el.style.top=(ly-target.h/2)+'px';
+  field.appendChild(el);live=null;
+  beers+=pts;setBeers+=pts;$('beers').textContent=beers;pop(lx,ly,msg);
+  try{navigator.vibrate&&navigator.vibrate(pts*25)}catch(e){}
+  setTimeout(nextProp,550);
+}
+function pop(x,y,txt,miss){const p=document.createElement('div');p.className='pop'+(miss?' miss':'');p.textContent=txt;
+  p.style.left=Math.max(60,Math.min(field.clientWidth-60,x))+'px';p.style.top=Math.max(20,Math.min(field.clientHeight-20,y))+'px';field.appendChild(p);setTimeout(()=>p.remove(),1000)}
+
+function banner(big,small,ms){const b=document.createElement('div');b.className='banner';b.innerHTML=big+(small?`<small>${small}</small>`:'');
+  field.appendChild(b);return new Promise(r=>setTimeout(()=>{b.remove();r()},ms))}
+
+async function showTime(){
+  phase='show';$('count').textContent='Show time';$('next').textContent='the band is on';
+  await banner('SHOW TIME!','Hit it, band',1800);
+  await banner('STRIKE!','Clear the field',1100);
+  if(phase!=='show')return; // restarted meanwhile
+  phase='strike';cleared=0;timeLeft=STRIKE_SECS;
+  tray.classList.add('strike');tray.querySelector('.lbl').innerHTML='Strike! Drag every prop <b>down here</b>';
+  field.querySelectorAll('.prop.placed').forEach(e=>{e.classList.remove('placed');e.classList.add('live')});
+  tick();timer=setInterval(()=>{timeLeft--;tick();if(timeLeft<=0)endStrike()},1000);
+}
+function tick(){$('count').textContent=`Strike 0:${String(Math.max(0,timeLeft)).padStart(2,'0')}`;
+  document.querySelector('.board .stat').classList.toggle('hurry',timeLeft<=5)}
+
+function dropStrike(el){
+  const fr=field.getBoundingClientRect(),r=el.getBoundingClientRect();
+  const cy=r.top+r.height/2;
+  if(cy>fr.bottom){
+    el.remove();cleared++;beers++;$('beers').textContent=beers;
+    pop(r.left+r.width/2-fr.left,fr.height-30,'OFF +1');
+    try{navigator.vibrate&&navigator.vibrate(25)}catch(e){}
+    if(cleared>=ROUNDS){beers+=ALL_CLEAR;$('beers').textContent=beers;endStrike(true)}
+    return;
+  }
+  // not off yet: it stays on the field where you dropped it
+  el.style.position='absolute';el.style.left=(r.left-fr.left-3)+'px';el.style.top=(r.top-fr.top-3)+'px';field.appendChild(el);
+  pop(r.left+r.width/2-fr.left,cy-fr.top,'KEEP GOING',true);
+}
+async function endStrike(allClear){
+  if(phase!=='strike')return;phase='done';clearInterval(timer);
+  document.querySelector('.board .stat').classList.remove('hurry');
+  field.querySelectorAll('.prop.live').forEach(e=>{e.classList.remove('live');e.classList.add('placed')});
+  await banner(allClear?'ALL CLEAR!':'TIME!',allClear?`+${ALL_CLEAR} bonus beers`:`${ROUNDS-cleared} left on the field`,1400);
+  if(phase==='done')finish();
+}
+
+function finish(){
+  let best=0;try{best=+localStorage.getItem('fieldcrew-best')||0;if(beers>best)localStorage.setItem('fieldcrew-best',beers)}catch(e){}
+  $('final').textContent=beers+(beers===1?' beer':' beers');
+  $('mugs').innerHTML=Array(beers).fill('<svg class="mug"><use href="#mug"/></svg>').join('');
+  const allClear=cleared>=ROUNDS;
+  $('endhead').textContent=allClear?"That's a wrap!":"The field's still dirty!";
+  $('tally').textContent=`Setup ${setBeers} · Strike ${cleared}${allClear?` · All clear +${ALL_CLEAR}`:''}`;
+  $('best').textContent=beers>=MAX?'A perfect show. Every prop on its spot and off in time.':beers>best&&best>0?`New record! Old best was ${best}.`:best?`Best: ${Math.max(best,beers)} of ${MAX}`:`Out of ${MAX} possible.`;
+  $('end').hidden=false;
+}
+
+$('go').onclick=$('again').onclick=()=>{if(live){live.remove();live=null}phase='set';startGame()};
+addEventListener('resize',()=>{drawField();if(live){const tr=tray.getBoundingClientRect();live.home={left:(tr.left+tr.width/2-live.offsetWidth/2)+'px',top:(tr.top+63-live.offsetHeight/2)+'px'};if(!live.classList.contains('drag'))Object.assign(live.style,live.home)}});
+requestAnimationFrame(drawField);
+</script>
+
+</html>
