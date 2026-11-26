@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Score Stripper</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✂️</text></svg>">
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1d1d1f; --muted:#6b6b70; --line:#e3e1dc;
+  --accent:#3b5bdb; --accent-ink:#fff; --cut:rgba(224,49,49,.30); --cut-edge:#e03131;
+  --ok:#2b8a3e; --warn:#b26a00;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141416; --card:#1f1f23; --ink:#ececef; --muted:#9b9ba3; --line:#33333a;
+    --accent:#748ffc; --accent-ink:#0b0b0d; --cut:rgba(255,107,107,.32); --cut-edge:#ff6b6b;
+    --ok:#69db7c; --warn:#ffc078;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141416; --card:#1f1f23; --ink:#ececef; --muted:#9b9ba3; --line:#33333a;
+  --accent:#748ffc; --accent-ink:#0b0b0d; --cut:rgba(255,107,107,.32); --cut-edge:#ff6b6b;
+  --ok:#69db7c; --warn:#ffc078;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 120px}
+h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 20px}
+.drop{display:block;border:2px dashed var(--line);border-radius:16px;background:var(--card);padding:36px 16px;text-align:center;cursor:pointer;transition:border-color .15s}
+.drop:hover,.drop.over{border-color:var(--accent)}
+.drop strong{display:block;font-size:19px;margin-bottom:4px}
+.drop span{color:var(--muted);font-size:14px}
+.drop input{display:none}
+.bar{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 0;margin-bottom:8px;border-bottom:1px solid var(--line)}
+.bar .name{font-weight:600;margin-right:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+button{font:inherit;font-size:15px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:disabled{opacity:.5;cursor:default}
+.hint{color:var(--muted);font-size:14px;margin:4px 0 16px}
+.pages{display:grid;gap:24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+.card-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.card-head b{margin-right:4px}
+.chip{font-size:13px;padding:2px 8px;border-radius:99px;border:1px solid currentColor}
+.chip.ok{color:var(--ok)} .chip.warn{color:var(--warn)}
+.card-head .sp{margin-left:auto}
+.card-head button{font-size:13px;padding:5px 10px}
+.stage{position:relative;width:100%;line-height:0;border:1px solid var(--line);background:#fff;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.stage canvas{width:100%;height:auto;display:block}
+.stage canvas.ov{position:absolute;inset:0;height:100%}
+body.boxmode .stage{touch-action:none;cursor:crosshair}
+.handle{position:absolute;left:0;right:0;height:0;touch-action:none}
+.handle i{position:absolute;right:6px;top:-15px;width:46px;height:30px;border-radius:15px;background:var(--cut-edge);color:#fff;font:600 16px/30px system-ui;font-style:normal;text-align:center;cursor:ns-resize;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.skipped .stage{opacity:.55}
+.skipped .handle{display:none}
+.status{margin:16px 0;color:var(--muted)}
+footer{color:var(--muted);font-size:13px;margin-top:32px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <h1>✂️ Score Stripper</h1>
+  <p class="sub">Removes titles, composer lines, page numbers, app credits and other headers and footers from sheet music. Only the music stays.</p>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept="application/pdf,image/png,image/jpeg,image/webp">
+    <strong>Choose sheet music</strong>
+    <span>PDF, PNG or JPG. Your file stays on this device.</span>
+  </label>
+
+  <div id="work" class="hidden">
+    <div class="bar">
+      <span class="name" id="fname"></span>
+      <button id="boxBtn" title="Drag on a page to cover anything else">▭ Erase a box</button>
+      <button id="newBtn">New file</button>
+      <button id="dlBtn" class="primary">⬇ Download clean file</button>
+    </div>
+    <p class="hint">The red areas get removed. Drag the red <b>⇕</b> grips to adjust. Turn on <b>Erase a box</b> to cover anything else, and tap a box to undo it.</p>
+    <div class="status" id="status"></div>
+    <div class="pages" id="pages"></div>
+  </div>
+
+  <footer>Works offline once loaded. Nothing is uploaded: the stripping happens in your browser.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const $ = id => document.getElementById(id);
+const PREVIEW_W = 1100;          // analysis / preview width in px
+let doc = null;                  // { kind:'pdf'|'image', name, bytes, pdf, img, pages:[...] }
+
+// ---------- detection ----------
+// Finds the staves (groups of ~5 long, evenly spaced horizontal lines), keeps the
+// ink bands that belong to the music, and marks everything above/below as removable.
+function analyze(canvas){
+  const w = canvas.width, h = canvas.height;
+  const data = canvas.getContext('2d', {willReadFrequently:true}).getImageData(0,0,w,h).data;
+  const x0 = Math.floor(w*0.02), x1 = Math.ceil(w*0.98);
+  const rows = new Uint32Array(h);
+  for (let y=0; y<h; y++){
+    let n=0, i=(y*w+x0)*4;
+    for (let x=x0; x<x1; x++, i+=4){
+      if (data[i]*0.3 + data[i+1]*0.59 + data[i+2]*0.11 < 150) n++;
+    }
+    rows[y]=n;
+  }
+  // 1. staff lines
+  const lineMin = (x1-x0)*0.35, lines=[];
+  for (let y=0; y<h; y++){
+    if (rows[y] >= lineMin){
+      let e=y; while (e+1<h && rows[e+1]>=lineMin) e++;
+      if (e-y < h*0.01) lines.push((y+e)/2);   // thin rows only, not solid blocks
+      y=e;
+    }
+  }
+  const staves=[];
+  for (let i=0; i+4<lines.length; ){
+    const g=[]; for (let k=0;k<4;k++) g.push(lines[i+k+1]-lines[i+k]);
+    const avg=g.reduce((a,b)=>a+b)/4;
+    if (avg>2 && avg<h/25 && g.every(v=>Math.abs(v-avg)<avg*0.35)){
+      staves.push({top:lines[i], bottom:lines[i+4], sp:avg}); i+=5;
+    } else i++;
+  }
+  if (!staves.length) return {music:false, top:0, bottom:1};
+  const sp = staves.map(s=>s.sp).sort((a,b)=>a-b)[staves.length>>1];
+
+  // 2. ink bands (rows with ink, split by blank gaps)
+  const inkMin = Math.max(2, w*0.002), bands=[];
+  const merge = Math.max(2, Math.round(sp*0.4));
+  for (let y=0; y<h; y++){
+    if (rows[y] >= inkMin){
+      let e=y;
+      for (;;){
+        let j=e+1; while (j<h && rows[j]<inkMin && j-e<=merge) j++;
+        if (j<h && rows[j]>=inkMin && j-e<=merge){ e=j; } else break;
+      }
+      bands.push({s:y, e:e}); y=e;
+    }
+  }
+  const isMusic = b => staves.some(st => st.top<=b.e && st.bottom>=b.s);
+  let first=-1, last=-1;
+  bands.forEach((b,i)=>{ if (isMusic(b)){ if(first<0) first=i; last=i; } });
+  // horizontal extent of ink inside a band
+  const extent = b => {
+    let lo=x1, hi=x0;
+    for (let y=b.s; y<=b.e; y++){
+      if (rows[y] < inkMin) continue;
+      let i=(y*w+x0)*4;
+      for (let x=x0; x<lo; x++, i+=4) if (data[i]*0.3+data[i+1]*0.59+data[i+2]*0.11 < 150){ lo=x; break; }
+      i=(y*w+x1-1)*4;
+      for (let x=x1-1; x>hi; x--, i-=4) if (data[i]*0.3+data[i+1]*0.59+data[i+2]*0.11 < 150){ hi=x; break; }
+    }
+    return {lo, hi};
+  };
+  const staffExt = extent({s:Math.round(staves[0].top), e:Math.round(staves[0].bottom)});
+  const staffW = Math.max(1, staffExt.hi-staffExt.lo);
+  // 3a. above the first staff keep one small, left-aligned marking (tempo, rehearsal mark).
+  //     Titles are centred and composer lines sit on the right, so those go.
+  if (first>0){
+    const b=bands[first-1], ex=extent(b);
+    if (bands[first].s-b.e <= sp*2 && b.e-b.s <= sp*3 && ex.lo <= staffExt.lo+staffW*0.2) first--;
+  }
+  // 3b. below the last staff keep lyrics/markings that hug it; footers sit further down.
+  for (let n=0; n<4 && last<bands.length-1; n++){
+    const b=bands[last+1], gap=b.s-bands[last].e, ex=extent(b);
+    const wide = (ex.hi-ex.lo) >= staffW*0.4;
+    if (b.e-b.s <= sp*5 && (gap <= sp*1.2 || (gap <= sp*2.6 && wide))) last++; else break;
+  }
+  const pad = sp*0.9;
+  const prevEnd = first>0 ? bands[first-1].e : -1;
+  const nextStart = last<bands.length-1 ? bands[last+1].s : h;
+  let top = Math.max(bands[first].s - pad, (prevEnd + bands[first].s)/2, 0);
+  let bottom = Math.min(bands[last].e + pad, (nextStart + bands[last].e)/2, h);
+  if (prevEnd < 0) top = 0;            // nothing above the music: leave the top alone
+  if (nextStart >= h) bottom = h;
+  return {music:true, top:top/h, bottom:bottom/h};
+}
+
+// ---------- loading ----------
+$('file').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); });
+const drop=$('drop');
+['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop', e => { const f=e.dataTransfer.files[0]; if (f) openFile(f); });
+$('newBtn').onclick = () => { doc=null; $('pages').innerHTML=''; $('work').classList.add('hidden'); drop.classList.remove('hidden'); $('file').value=''; };
+
+async function openFile(file){
+  drop.classList.add('hidden'); $('work').classList.remove('hidden');
+  $('fname').textContent = file.name; $('pages').innerHTML=''; $('dlBtn').disabled=true;
+  setStatus('Reading…');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const name = file.name.replace(/\.[^.]+$/,'');
+  try{
+    if (file.type==='application/pdf' || /\.pdf$/i.test(file.name)){
+      const pdf = await pdfjsLib.getDocument({data: bytes.slice()}).promise;
+      doc = {kind:'pdf', name, bytes, pdf, pages:[]};
+      for (let i=1; i<=pdf.numPages; i++){
+        setStatus(`Finding headers and footers… page ${i} of ${pdf.numPages}`);
+        const page = await pdf.getPage(i);
+        const vp1 = page.getViewport({scale:1});
+        const vp = page.getViewport({scale: PREVIEW_W/vp1.width});
+        const c = document.createElement('canvas'); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+        const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
+        await page.render({canvasContext:ctx, viewport:vp}).promise;
+        addPage(c, analyze(c), {pdfPage:page});
+      }
+    } else {
+      const img = await loadImage(file);
+      doc = {kind:'image', name, type:file.type, img, pages:[]};
+      const scale = Math.min(1, PREVIEW_W/img.naturalWidth);
+      const c=document.createElement('canvas'); c.width=Math.round(img.naturalWidth*scale); c.height=Math.round(img.naturalHeight*scale);
+      const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height); ctx.drawImage(img,0,0,c.width,c.height);
+      addPage(c, analyze(c), {});
+    }
+    const found = doc.pages.filter(p=>p.music).length;
+    setStatus(found ? '' : 'No music staves were found, so nothing is marked yet. You can drag the grips or erase boxes by hand.');
+    $('dlBtn').disabled=false;
+  } catch(err){
+    console.error(err);
+    setStatus('Sorry, that file could not be opened. ' + (err && err.message ? err.message : ''));
+  }
+}
+function loadImage(file){
+  return new Promise((res,rej)=>{ const img=new Image(); img.onload=()=>res(img); img.onerror=()=>rej(new Error('Not a readable image.')); img.src=URL.createObjectURL(file); });
+}
+function setStatus(t){ $('status').textContent=t; $('status').classList.toggle('hidden',!t); }
+
+// ---------- page cards ----------
+function addPage(canvas, a, extra){
+  const idx = doc.pages.length;
+  const p = Object.assign({canvas, music:a.music, auto:{top:a.top,bottom:a.bottom}, top:a.top, bottom:a.bottom, boxes:[], skip:false}, extra);
+  doc.pages.push(p);
+  const card=document.createElement('section'); card.className='card'; p.card=card;
+  card.innerHTML = `<div class="card-head"><b>Page ${idx+1}</b>
+      <span class="chip ${a.music?'ok':'warn'}">${a.music?'Music found':'No music found'}</span>
+      <span class="sp"></span>
+      <button data-a="all">Use on all pages</button><button data-a="reset">Reset</button><button data-a="skip">Leave untouched</button></div>
+    <div class="stage"><canvas class="ov"></canvas>
+      <div class="handle" data-h="top"><i>⇕</i></div><div class="handle" data-h="bottom"><i>⇕</i></div></div>`;
+  const stage=card.querySelector('.stage');
+  stage.insertBefore(canvas, stage.firstChild);
+  const ov=card.querySelector('.ov'); ov.width=canvas.width; ov.height=canvas.height; p.ov=ov;
+  card.querySelector('[data-a=all]').onclick=()=>{ doc.pages.forEach(q=>{ q.top=p.top; q.bottom=p.bottom; q.skip=false; refresh(q); }); };
+  card.querySelector('[data-a=reset]').onclick=()=>{ p.top=p.auto.top; p.bottom=p.auto.bottom; p.boxes=[]; p.skip=false; refresh(p); };
+  card.querySelector('[data-a=skip]').onclick=()=>{ p.skip=!p.skip; refresh(p); };
+  card.querySelectorAll('.handle').forEach(hd=>dragHandle(p, hd, stage));
+  boxDrawing(p, stage);
+  $('pages').appendChild(card);
+  refresh(p);
+}
+function refresh(p){
+  const ctx=p.ov.getContext('2d'), W=p.ov.width, H=p.ov.height;
+  ctx.clearRect(0,0,W,H);
+  p.card.classList.toggle('skipped', p.skip);
+  p.card.querySelector('[data-a=skip]').classList.toggle('on', p.skip);
+  p.card.querySelector('[data-h=top]').style.top=(p.top*100)+'%';
+  p.card.querySelector('[data-h=bottom]').style.top=(p.bottom*100)+'%';
+  if (p.skip) return;
+  const cut=getComputedStyle(document.documentElement);
+  ctx.fillStyle=cut.getPropertyValue('--cut'); ctx.strokeStyle=cut.getPropertyValue('--cut-edge'); ctx.lineWidth=3;
+  for (const r of regions(p)){
+    ctx.fillRect(r.x*W, r.y*H, r.w*W, r.h*H);
+  }
+  ctx.beginPath(); ctx.moveTo(0,p.top*H); ctx.lineTo(W,p.top*H); ctx.moveTo(0,p.bottom*H); ctx.lineTo(W,p.bottom*H); ctx.stroke();
+  for (const b of p.boxes) ctx.strokeRect(b.x*W, b.y*H, b.w*W, b.h*H);
+}
+// regions to white out, as fractions of the page
+function regions(p){
+  if (p.skip) return [];
+  const out=[];
+  if (p.top>0.0005) out.push({x:0,y:0,w:1,h:p.top});
+  if (p.bottom<0.9995) out.push({x:0,y:p.bottom,w:1,h:1-p.bottom});
+  return out.concat(p.boxes);
+}
+function frac(e, stage){
+  const r=stage.getBoundingClientRect();
+  return {x:Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)), y:Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))};
+}
+function dragHandle(p, hd, stage){
+  const which=hd.dataset.h, grip=hd.querySelector('i');
+  grip.addEventListener('pointerdown', e=>{
+    e.preventDefault(); e.stopPropagation(); grip.setPointerCapture(e.pointerId);
+    const move=ev=>{
+      const y=frac(ev,stage).y;
+      if (which==='top') p.top=Math.min(y, p.bottom-0.02); else p.bottom=Math.max(y, p.top+0.02);
+      refresh(p);
+    };
+    const up=()=>{ grip.removeEventListener('pointermove',move); grip.removeEventListener('pointerup',up); grip.removeEventListener('pointercancel',up); };
+    grip.addEventListener('pointermove',move); grip.addEventListener('pointerup',up); grip.addEventListener('pointercancel',up);
+  });
+}
+function boxDrawing(p, stage){
+  stage.addEventListener('pointerdown', e=>{
+    if (!document.body.classList.contains('boxmode') || p.skip) return;
+    e.preventDefault(); stage.setPointerCapture(e.pointerId);
+    const a=frac(e,stage); let box=null;
+    const move=ev=>{
+      const b=frac(ev,stage);
+      box={x:Math.min(a.x,b.x), y:Math.min(a.y,b.y), w:Math.abs(b.x-a.x), h:Math.abs(b.y-a.y)};
+      refresh(p);
+      const ctx=p.ov.getContext('2d'); ctx.setLineDash([8,6]); ctx.strokeRect(box.x*p.ov.width, box.y*p.ov.height, box.w*p.ov.width, box.h*p.ov.height); ctx.setLineDash([]);
+    };
+    const up=()=>{
+      stage.removeEventListener('pointermove',move); stage.removeEventListener('pointerup',up); stage.removeEventListener('pointercancel',up);
+      if (box && box.w>0.01 && box.h>0.005) p.boxes.push(box);
+      else { // a tap: remove the box under the finger
+        const i=p.boxes.findIndex(b=>a.x>=b.x&&a.x<=b.x+b.w&&a.y>=b.y&&a.y<=b.y+b.h);
+        if (i>=0) p.boxes.splice(i,1);
+      }
+      refresh(p);
+    };
+    stage.addEventListener('pointermove',move); stage.addEventListener('pointerup',up); stage.addEventListener('pointercancel',up);
+  });
+}
+$('boxBtn').onclick=()=>{ const on=document.body.classList.toggle('boxmode'); $('boxBtn').classList.toggle('on',on); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>doc&&doc.pages.forEach(refresh));
+
+// ---------- export ----------
+$('dlBtn').onclick = async ()=>{
+  const btn=$('dlBtn'); btn.disabled=true; const label=btn.textContent; btn.textContent='Working…';
+  try{
+    if (doc.kind==='image') await exportImage();
+    else {
+      try { await exportPdfVector(); }
+      catch(err){ console.warn('Vector export failed, flattening instead', err); await exportPdfFlat(); }
+    }
+  } catch(err){ console.error(err); alert('Sorry, the file could not be saved. '+(err.message||'')); }
+  btn.disabled=false; btn.textContent=label;
+};
+function save(blob, filename){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 30000);
+}
+// Keeps the original PDF (sharp, small) and paints white over the removed areas.
+async function exportPdfVector(){
+  const {PDFDocument, rgb} = PDFLib;
+  const out = await PDFDocument.load(doc.bytes, {ignoreEncryption:false});
+  const pages = out.getPages();
+  doc.pages.forEach((p,i)=>{
+    const vp = p.pdfPage.getViewport({scale:1});
+    for (const r of regions(p)){
+      // edges that touch the page border overshoot it so no sliver is left
+      const W=vp.width, H=vp.height, o=20;
+      const x0 = r.x<=0 ? -o : r.x*W, x1 = r.x+r.w>=1 ? W+o : (r.x+r.w)*W;
+      const y0 = r.y<=0 ? -o : r.y*H, y1 = r.y+r.h>=1 ? H+o : (r.y+r.h)*H;
+      const a = vp.convertToPdfPoint(x0, y0), b = vp.convertToPdfPoint(x1, y1);
+      pages[i].drawRectangle({x:Math.min(a[0],b[0]), y:Math.min(a[1],b[1]), width:Math.abs(b[0]-a[0]), height:Math.abs(b[1]-a[1]), color:rgb(1,1,1), borderWidth:0});
+    }
+  });
+  save(new Blob([await out.save()], {type:'application/pdf'}), doc.name+'-clean.pdf');
+}
+// Fallback for locked/odd PDFs: re-render every page as an image and build a new PDF.
+async function exportPdfFlat(){
+  const {PDFDocument} = PDFLib;
+  const out = await PDFDocument.create();
+  for (const p of doc.pages){
+    const vp1=p.pdfPage.getViewport({scale:1}), vp=p.pdfPage.getViewport({scale:200/72});
+    const c=document.createElement('canvas'); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+    const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
+    await p.pdfPage.render({canvasContext:ctx, viewport:vp}).promise;
+    whiteOut(ctx, p, c.width, c.height);
+    const jpg = await (await new Promise(r=>c.toBlob(r,'image/jpeg',0.92))).arrayBuffer();
+    const img = await out.embedJpg(jpg);
+    out.addPage([vp1.width, vp1.height]).drawImage(img,{x:0,y:0,width:vp1.width,height:vp1.height});
+  }
+  save(new Blob([await out.save()], {type:'application/pdf'}), doc.name+'-clean.pdf');
+}
+async function exportImage(){
+  const img=doc.img, p=doc.pages[0];
+  const c=document.createElement('canvas'); c.width=img.naturalWidth; c.height=img.naturalHeight;
+  const ctx=c.getContext('2d'); ctx.drawImage(img,0,0);
+  whiteOut(ctx, p, c.width, c.height);
+  const type = doc.type==='image/jpeg' ? 'image/jpeg' : 'image/png';
+  const blob = await new Promise(r=>c.toBlob(r,type,0.95));
+  save(blob, doc.name+'-clean.'+(type==='image/jpeg'?'jpg':'png'));
+}
+function whiteOut(ctx, p, W, H){
+  ctx.fillStyle='#fff';
+  for (const r of regions(p)) ctx.fillRect(Math.floor(r.x*W)-1, Math.floor(r.y*H)-1, Math.ceil(r.w*W)+2, Math.ceil(r.h*H)+2);
+}
+</script>
+</body>
+</html>
