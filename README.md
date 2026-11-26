@@ -53,3 +53,19 @@ Level 2 is coming soon. Its code is all in `hospital-simulator/index.html`, with
 **▶ Play: https://marginalsolutions.github.io/pitch-lab/field-crew/**
 
 One file, `field-crew/index.html`, with no build step.
+
+---
+
+# 🎼 Clef Hanger
+
+**Snap your sheet music. Change the clef. Switch the instrument.**
+
+**▶ Open: https://marginalsolutions.github.io/pitch-lab/clef-hanger/**
+
+1. **Your music:** take a photo of one page of sheet music, or choose an image, a PDF or a MusicXML file. There's also a built-in sample (Ode to Joy for B♭ clarinet).
+2. **What we found:** the clef(s), the key, the time signature and the instrument it's written for. The instrument is read from the label on the page, or guessed from the clef and range. You can correct it.
+3. **Convert to:** pick any of about 30 instruments. Clef Hanger rewrites the notes in that instrument's clef and transposition (for example, B♭ clarinet to E♭ alto sax, or treble clef to alto clef for viola). It picks an octave that fits the new instrument's range and marks notes outside that range in red. Then you can **play** it, **download MusicXML** for MuseScore, Finale, Sibelius, Dorico or Noteflight, or **print** it.
+
+**Reading photos and PDFs uses Claude**, so each person enters their own Anthropic API key (from console.anthropic.com). The key stays in that browser, and images go straight from the browser to Anthropic. MusicXML files and the sample work without a key.
+
+One file, `clef-hanger/index.html`, with no build step. Notation and playback use [abcjs](https://www.abcjs.net/).

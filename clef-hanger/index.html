@@ -1,0 +1,1068 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f1e7">
+<title>Clef Hanger</title>
+<meta name="description" content="Snap a photo of sheet music, then rewrite it in another clef or for another instrument.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.7.2/dist/abcjs-basic-min.js"></script>
+<style>
+/* Layout: a single column of three cards (Your music, What we found, Convert to) on manuscript-paper colors. One light theme: sheet music reads best as ink on paper. */
+:root{
+  --paper:#f6f1e7;
+  --card:#fffdf8;
+  --ink:#1f1b16;
+  --muted:#6d6457;
+  --line:#e4dacb;
+  --accent:#c2402a;      /* red pencil */
+  --accent-ink:#fff;
+  --ok:#2f7a4f;
+  --warn:#9a5b00;
+  --warn-bg:#fff3dc;
+  --display:"Fraunces",Georgia,"Times New Roman",serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--body);
+  background-image:repeating-linear-gradient(to bottom,transparent 0 31px,rgba(120,95,60,.06) 31px 32px)}
+main{max-width:880px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right)) 64px max(16px,env(safe-area-inset-left))}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0 16px}
+.brand h1{font-family:var(--display);font-weight:800;font-size:clamp(30px,7vw,44px);line-height:1;margin:0;letter-spacing:-.01em}
+.brand h1 span{color:var(--accent)}
+.brand p{margin:6px 0 0;color:var(--muted);font-size:15px}
+#keyBtn{white-space:nowrap;align-self:flex-start;margin-top:6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:0 0 16px;box-shadow:0 1px 0 rgba(0,0,0,.03)}
+.card h2{font-family:var(--display);font-weight:600;font-size:21px;margin:0 0 12px;display:flex;align-items:center;gap:10px}
+.step{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--paper);font:700 14px var(--body);flex:none}
+.hidden{display:none !important}
+button,.btn{font:600 15px var(--body);border-radius:10px;border:1px solid var(--ink);background:var(--card);color:var(--ink);
+  padding:10px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none;min-height:44px}
+button:hover,.btn:hover{background:#f3ece0}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.primary:hover{background:#a83521}
+button:disabled{opacity:.5;cursor:default}
+button.link{border:none;background:none;padding:4px 6px;min-height:0;color:var(--muted);text-decoration:underline;font-weight:500}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.drop{border:2px dashed #cbbfa9;border-radius:12px;padding:20px;text-align:center;transition:background .15s}
+.drop.over{background:#f3ece0;border-color:var(--accent)}
+.drop p{margin:0 0 12px;color:var(--muted)}
+.drop .row{justify-content:center}
+.preview{margin-top:14px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.preview img{max-width:180px;max-height:220px;border:1px solid var(--line);border-radius:8px;background:#fff;object-fit:contain}
+.preview .meta{flex:1;min-width:200px}
+.filename{font-weight:600;word-break:break-all}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.progress{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px;border-radius:10px;background:#f3ece0}
+.spinner{width:22px;height:22px;border-radius:50%;border:3px solid #d9ccb6;border-top-color:var(--accent);animation:spin 1s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+.fact{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
+.fact .k{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.fact .v{font-weight:600;margin-top:2px}
+label.field{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.02em;min-width:0}
+select,input[type=password],input[type=text]{font:500 16px var(--body);color:var(--ink);background:#fff;border:1px solid #cbbfa9;border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+.controls{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:12px}
+.controls.with-staves{grid-template-columns:2fr 1fr 1fr 1fr}
+@media (max-width:620px){.controls,.controls.with-staves{grid-template-columns:1fr 1fr}.controls label:first-child{grid-column:1/-1}}
+.notice{border-radius:10px;padding:10px 12px;margin:10px 0;font-size:15px}
+.notice.warn{background:var(--warn-bg);color:#5c3b00}
+.notice.err{background:#fde6e1;color:#7a1f10}
+.notice.info{background:#eef4ee;color:#1e4d33}
+.notice ul{margin:4px 0 0;padding-left:20px}
+.summary{font-size:15px;margin:0 0 10px}
+.summary b{color:var(--accent)}
+.score{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 4px;overflow:hidden}
+.score svg{display:block}
+.score .oor{fill:var(--accent)}
+details.orig{margin-top:10px}
+details.orig summary{cursor:pointer;font-weight:600;padding:6px 0}
+.actions{margin-top:12px}
+dialog{border:none;border-radius:14px;padding:0;max-width:min(520px,calc(100vw - 32px));width:100%;background:var(--card);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(31,27,22,.45)}
+dialog .inner{padding:20px}
+dialog h3{font-family:var(--display);margin:0 0 8px;font-size:22px}
+dialog p{margin:0 0 10px;font-size:15px}
+.check{display:flex;gap:8px;align-items:center;font-size:15px;margin:10px 0}
+footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
+footer a{color:inherit}
+#playArea{position:absolute;left:-10000px;top:0;width:800px}
+@media print{
+  body{background:#fff}
+  header.top,#cardInput,#cardFound,.controls,.summary,.actions,.notice,footer,details.orig,#cardOut h2{display:none !important}
+  .card{border:none;box-shadow:none;padding:0}
+  .score{border:none}
+}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="brand">
+      <h1>Clef <span>Hanger</span></h1>
+      <p>Snap your sheet music. Change the clef. Switch the instrument.</p>
+    </div>
+    <button class="link" id="keyBtn" type="button">API key</button>
+  </header>
+
+  <section class="card" id="cardInput">
+    <h2><span class="step">1</span> Your music</h2>
+    <div class="drop" id="drop">
+      <p>Take a photo of one page of sheet music, or choose an image, PDF or MusicXML file.</p>
+      <div class="row">
+        <label class="btn" for="camInput">📷 Take a photo</label>
+        <label class="btn" for="fileInput">📂 Choose a file</label>
+        <button type="button" id="sampleBtn">🎵 Try a sample</button>
+      </div>
+      <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden">
+      <input type="file" id="fileInput" accept="image/*,application/pdf,.pdf,.musicxml,.xml,.mxl" class="hidden">
+    </div>
+    <div class="preview hidden" id="preview">
+      <img id="previewImg" alt="Your sheet music">
+      <div class="meta">
+        <div class="filename" id="fileName"></div>
+        <div class="muted small" id="fileHint"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" type="button" id="readBtn">Read the music</button>
+        </div>
+      </div>
+    </div>
+    <div class="progress hidden" id="progress">
+      <div class="spinner"></div>
+      <div style="flex:1"><div id="progressText">Reading the music…</div><div class="muted small" id="progressSub"></div></div>
+      <button type="button" id="cancelBtn">Cancel</button>
+    </div>
+    <div id="inputMsg"></div>
+  </section>
+
+  <section class="card hidden" id="cardFound">
+    <h2><span class="step">2</span> What we found</h2>
+    <div class="facts">
+      <div class="fact"><div class="k">Clef</div><div class="v" id="fClef"></div></div>
+      <div class="fact"><div class="k">Key</div><div class="v" id="fKey"></div></div>
+      <div class="fact"><div class="k">Time</div><div class="v" id="fTime"></div></div>
+    </div>
+    <div class="row" style="align-items:flex-end">
+      <label class="field" style="flex:1;min-width:220px" id="partWrap">Part
+        <select id="partSel"></select>
+      </label>
+      <label class="field" style="flex:1;min-width:220px">Written for
+        <select id="srcSel"></select>
+      </label>
+    </div>
+    <p class="muted small" id="srcReason" style="margin:8px 0 0"></p>
+    <div id="foundMsg"></div>
+    <details class="orig" id="origDetails">
+      <summary>Show the music as we read it</summary>
+      <p class="muted small" style="margin:4px 0 8px">Check this against your page. If a note is wrong here, it will be wrong in the conversion too.</p>
+      <div class="score" id="origScore"></div>
+    </details>
+  </section>
+
+  <section class="card hidden" id="cardOut">
+    <h2><span class="step">3</span> Convert to</h2>
+    <div class="controls" id="controls">
+      <label class="field">Instrument
+        <select id="tgtSel"></select>
+      </label>
+      <label class="field">Clef
+        <select id="clefSel">
+          <option value="auto">Auto</option>
+          <option value="treble">Treble</option>
+          <option value="bass">Bass</option>
+          <option value="alto">Alto</option>
+          <option value="tenor">Tenor</option>
+          <option value="treble8">Treble 8vb</option>
+        </select>
+      </label>
+      <label class="field">Octave
+        <select id="octSel">
+          <option value="auto">Auto</option>
+          <option value="2">Up 2</option>
+          <option value="1">Up 1</option>
+          <option value="0">As is</option>
+          <option value="-1">Down 1</option>
+          <option value="-2">Down 2</option>
+        </select>
+      </label>
+      <label class="field hidden" id="stavesWrap">Staves
+        <select id="stavesSel">
+          <option value="all">All</option>
+          <option value="top">Top only</option>
+          <option value="bottom">Bottom only</option>
+        </select>
+      </label>
+    </div>
+    <p class="summary" id="summary"></p>
+    <div id="outMsg"></div>
+    <div class="score" id="outScore"></div>
+    <div class="row actions">
+      <button class="primary" type="button" id="playBtn">▶ Play</button>
+      <button type="button" id="xmlBtn">⬇ MusicXML</button>
+      <button type="button" id="printBtn">🖨 Print / PDF</button>
+    </div>
+    <p class="muted small" style="margin:10px 0 0">MusicXML opens in MuseScore, Finale, Sibelius, Dorico and Noteflight.</p>
+  </section>
+
+  <footer>Notes outside the instrument's usual range are shown in red. Clef Hanger is part of <a href="../">Pitch Lab</a>.</footer>
+</main>
+
+<div id="playArea" aria-hidden="true"></div>
+
+<dialog id="keyDlg">
+  <form method="dialog" class="inner" id="keyForm">
+    <h3>Your Anthropic API key</h3>
+    <p>Clef Hanger uses Claude to read the notes in your photo. Each page you read is billed to your own Anthropic account. Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.</p>
+    <p class="muted small">Your key and your images go straight from this browser to Anthropic and nowhere else. You don't need a key to open MusicXML files or try the sample.</p>
+    <input type="password" id="keyInput" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+    <label class="check"><input type="checkbox" id="keyRemember" checked> Remember on this device</label>
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="link" id="keyClear">Forget key</button>
+      <button value="cancel" type="button" id="keyCancel">Cancel</button>
+      <button class="primary" value="ok" id="keySave">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module">
+/* ================================================================
+   Clef Hanger
+   Data model (one "part"):
+   { title, instrument_id, instrument_label, instrument_reason, key_fifths, time:{num,den},
+     tempo, notes:[string], staves:[{clef, measures:[{events:[ev]}]}] }
+   ev = { rest, pitches:[{li,alt,oct}], dur:"w|h|q|8|16|32|64", dots, triplet, tie }
+   All pitches are WRITTEN pitches (key signature already applied).
+   ================================================================ */
+
+const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.7.0/+esm";
+const MODEL = "claude-opus-5-5";
+const KEY_STORE = "clefHanger.apiKey";
+
+// [group, id, name, default clef, written->concert {diatonic steps, semitones}, concert range [lo,hi] (MIDI), GM program]
+const INSTRUMENTS = [
+  ["Keyboard","piano","Piano","grand",0,0,null,0],
+  ["Strings","violin","Violin","treble",0,0,[55,103],40],
+  ["Strings","viola","Viola","alto",0,0,[48,91],41],
+  ["Strings","cello","Cello","bass",0,0,[36,81],42],
+  ["Strings","double_bass","Double Bass","bass",-7,-12,[28,67],43],
+  ["Strings","guitar","Guitar","treble",-7,-12,[40,88],24],
+  ["Strings","bass_guitar","Bass Guitar","bass",-7,-12,[28,67],33],
+  ["Woodwinds","piccolo","Piccolo","treble",7,12,[74,108],72],
+  ["Woodwinds","flute","Flute","treble",0,0,[60,96],73],
+  ["Woodwinds","oboe","Oboe","treble",0,0,[58,91],68],
+  ["Woodwinds","clarinet_bb","Clarinet in B♭","treble",-1,-2,[50,91],71],
+  ["Woodwinds","clarinet_a","Clarinet in A","treble",-2,-3,[49,90],71],
+  ["Woodwinds","clarinet_eb","Clarinet in E♭","treble",2,3,[55,94],71],
+  ["Woodwinds","bass_clarinet","Bass Clarinet in B♭","treble",-8,-14,[34,77],71],
+  ["Woodwinds","bassoon","Bassoon","bass",0,0,[34,75],70],
+  ["Saxophones","soprano_sax","Soprano Sax in B♭","treble",-1,-2,[56,88],64],
+  ["Saxophones","alto_sax","Alto Sax in E♭","treble",-5,-9,[49,81],65],
+  ["Saxophones","tenor_sax","Tenor Sax in B♭","treble",-8,-14,[44,76],66],
+  ["Saxophones","bari_sax","Baritone Sax in E♭","treble",-12,-21,[36,69],67],
+  ["Brass","trumpet","Trumpet in B♭","treble",-1,-2,[52,82],56],
+  ["Brass","horn","French Horn in F","treble",-4,-7,[34,77],60],
+  ["Brass","trombone","Trombone","bass",0,0,[40,77],57],
+  ["Brass","euphonium","Euphonium (bass clef)","bass",0,0,[34,72],58],
+  ["Brass","baritone_tc","Baritone in B♭ (treble clef)","treble",-8,-14,[34,72],58],
+  ["Brass","tuba","Tuba","bass",0,0,[26,65],58],
+  ["Voice","soprano","Soprano voice","treble",0,0,[60,81],52],
+  ["Voice","alto","Alto voice","treble",0,0,[53,77],52],
+  ["Voice","tenor","Tenor voice","treble8",-7,-12,[48,69],52],
+  ["Voice","bass_voice","Bass voice","bass",0,0,[40,64],52],
+  ["Other","unknown","Not sure (concert pitch)","auto",0,0,null,0],
+].map(([group,id,name,clef,d,s,range,program])=>({group,id,name,clef,d,s,range,program}));
+const INST = Object.fromEntries(INSTRUMENTS.map(i=>[i.id,i]));
+
+const LETTERS = "CDEFGAB";
+const STEPS = [0,2,4,5,7,9,11];
+const DUR128 = {w:128,h:64,q:32,"8":16,"16":8,"32":4,"64":2};
+const DUR_NAME = {w:"whole",h:"half",q:"quarter","8":"eighth","16":"16th","32":"32nd","64":"64th"};
+const CLEF_NAME = {treble:"Treble",bass:"Bass",alto:"Alto",tenor:"Tenor",treble8:"Treble 8vb"};
+const MAJOR = ["C♭","G♭","D♭","A♭","E♭","B♭","F","C","G","D","A","E","B","F♯","C♯"];
+const MINOR = ["A♭","E♭","B♭","F","C","G","D","A","E","B","F♯","C♯","G♯","D♯","A♯"];
+const ABC_KEY = ["Cb","Gb","Db","Ab","Eb","Bb","F","C","G","D","A","E","B","F#","C#"];
+
+const $ = s => document.querySelector(s);
+const mod = (a,n) => ((a%n)+n)%n;
+const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- pitch math ---------- */
+function parsePitch(str){
+  const m = /^\s*([A-Ga-g])\s*(bb|b|##|#|x|♭♭|♭|♯♯|♯|n|♮)?\s*(-?\d)\s*$/.exec(String(str));
+  if(!m) return null;
+  const alt = {bb:-2,"♭♭":-2,b:-1,"♭":-1,"#":1,"♯":1,"##":2,"♯♯":2,x:2,n:0,"♮":0}[m[2]||"n"];
+  return {li:LETTERS.indexOf(m[1].toUpperCase()), alt, oct:+m[3]};
+}
+const midiOf = p => 12*(p.oct+1)+STEPS[p.li]+p.alt;
+function spellMidi(m, preferFlat){
+  const pc = mod(m,12), oct = Math.floor(m/12)-1;
+  const sharp = [[0,0],[0,1],[1,0],[1,1],[2,0],[3,0],[3,1],[4,0],[4,1],[5,0],[5,1],[6,0]];
+  const flat  = [[0,0],[1,-1],[1,0],[2,-1],[2,0],[3,0],[4,-1],[4,0],[5,-1],[5,0],[6,-1],[6,0]];
+  const [li,alt] = (preferFlat?flat:sharp)[pc];
+  return {li,alt,oct};
+}
+function transposeP(p, d, s){
+  const dn = p.oct*7+p.li+d;
+  const li = mod(dn,7), oct = Math.floor(dn/7);
+  const target = midiOf(p)+s;
+  const alt = target-(12*(oct+1)+STEPS[li]);
+  if(Math.abs(alt)>2) return spellMidi(target, s<0);
+  return {li,alt,oct};
+}
+const TONIC_FIFTHS = [0,2,4,-1,1,3,5]; // C D E F G A B
+function transposeKey(fifths, iv){
+  const t = MAJOR[fifths+7] ? fifths : 0;
+  const tonicName = ABC_KEY[t+7];
+  const tonic = parsePitch(tonicName+"4");
+  let d = iv.d, s = iv.s;
+  let nt = transposeP(tonic,d,s);
+  let f = TONIC_FIFTHS[nt.li]+7*nt.alt;
+  // Respell enharmonically so the key never has more than 6 sharps or flats (e.g. C# major -> Db major).
+  while(f>6){ d+=1; f-=12; }
+  while(f<-6){ d-=1; f+=12; }
+  return {fifths:f, iv:{d,s}};
+}
+function keyAlters(fifths){
+  const a = [0,0,0,0,0,0,0];
+  const sharps=[3,0,4,1,5,2,6], flats=[6,2,5,1,4,0,3];
+  for(let i=0;i<Math.min(7,Math.abs(fifths));i++){ if(fifths>0) a[sharps[i]]=1; else a[flats[i]]=-1; }
+  return a;
+}
+function ordinal(n){ const v=n%100; return n+((v>=11&&v<=13)?"th":({1:"st",2:"nd",3:"rd"}[n%10]||"th")); }
+function intervalName(d,s){
+  if(d===0&&s===0) return null;
+  const up = d>0||(d===0&&s>0);
+  const ad=Math.abs(d), as=Math.abs(s), oct=Math.floor(ad/7), sd=ad%7, ss=as-12*oct;
+  const diff = ss-STEPS[sd];
+  const perfect = sd===0||sd===3||sd===4;
+  let q;
+  if(perfect) q = diff===0?"perfect":diff===1?"augmented":diff===-1?"diminished":null;
+  else q = diff===0?"major":diff===-1?"minor":diff===1?"augmented":diff===-2?"diminished":null;
+  let name;
+  if(sd===0 && diff===0 && oct>0) name = oct===1?"an octave":`${oct} octaves`;
+  else if(q===null) name = `${as} semitones`;
+  else { const num = sd+1+7*oct; const word = num===1?"unison":ordinal(num); name = (/^[aeiou]/.test(q)?"an ":"a ")+q+" "+word; }
+  return (up?"up ":"down ")+name;
+}
+const keyLabel = f => f===0 ? "C major / A minor (no sharps or flats)" :
+  `${MAJOR[f+7]} major / ${MINOR[f+7]} minor (${Math.abs(f)} ${f>0?"sharp":"flat"}${Math.abs(f)>1?"s":""})`;
+const pitchLabel = p => LETTERS[p.li]+({"-2":"𝄫","-1":"♭","0":"","1":"♯","2":"𝄪"}[p.alt])+p.oct;
+
+/* ---------- durations ---------- */
+const len128 = ev => { const b = DUR128[ev.dur]||32; let l=b, add=b; for(let i=0;i<ev.dots;i++){ add/=2; l+=add; } return Math.round(l); };
+const pos384 = ev => ev.triplet ? len128(ev)*2 : len128(ev)*3;
+const measureLen128 = t => Math.round(128*t.num/t.den);
+function parseTime(t){
+  const s = String(t||"").trim();
+  if(/^c\|$/i.test(s)||/cut/i.test(s)) return {num:2,den:2};
+  if(/^c$/i.test(s)||/common/i.test(s)) return {num:4,den:4};
+  const m = /^(\d+)\s*\/\s*(\d+)$/.exec(s);
+  if(m && +m[1]>0 && [1,2,4,8,16,32].includes(+m[2])) return {num:+m[1],den:+m[2]};
+  return {num:4,den:4};
+}
+function beat384(t){
+  // Beam groups, in 1/384ths of a whole note.
+  if(t.den===8 && t.num%3===0) return 144;  // dotted quarter (3/8, 6/8, 9/8, 12/8)
+  if(t.den===8) return 96;
+  return Math.round(384/t.den) || 96;
+}
+
+/* ---------- normalize data coming from Claude or MusicXML ---------- */
+function normalize(raw){
+  const notes = [];
+  const staves = (raw.staves||[]).map(st => ({
+    clef: CLEF_NAME[st.clef] ? st.clef : "treble",
+    measures: (st.measures||[]).map(m => ({events:(m.events||[]).map(ev=>{
+      const dur = DUR128[ev.duration ?? ev.dur] ? String(ev.duration ?? ev.dur) : "q";
+      const pitches = ev.rest ? [] : (ev.pitches||[]).map(p=>typeof p==="string"?parsePitch(p):p).filter(Boolean)
+        .sort((a,b)=>midiOf(a)-midiOf(b));
+      return {rest: !!ev.rest || pitches.length===0, pitches, dur, dots: Math.max(0,Math.min(2,ev.dots|0)), triplet:!!ev.triplet, tie:!!(ev.tie_to_next ?? ev.tie)};
+    })}))
+  })).filter(st=>st.measures.length);
+  const n = Math.max(0,...staves.map(s=>s.measures.length));
+  staves.forEach(st=>{ while(st.measures.length<n) st.measures.push({events:[]}); });
+  const time = typeof raw.time==="object"&&raw.time ? raw.time : parseTime(raw.time_signature);
+  // Flag measures that don't add up (skip the first and last, which may be pickups).
+  const want = measureLen128(time), bad = new Set();
+  staves.forEach(st=>st.measures.forEach((m,i)=>{
+    if(i===0||i===n-1||!m.events.length) return;
+    const got = m.events.reduce((a,e)=>a+pos384(e),0)/3;
+    if(Math.abs(got-want)>0.5) bad.add(i+1);
+  }));
+  if(bad.size) notes.push(`Measure${bad.size>1?"s":""} ${[...bad].slice(0,8).join(", ")}${bad.size>8?"…":""} ${bad.size>1?"don't":"doesn't"} add up to ${time.num}/${time.den}. ${bad.size>1?"They":"It"} may have been misread.`);
+  const id = INST[raw.instrument_id] ? raw.instrument_id : "unknown";
+  return {
+    title: String(raw.title||"").trim(),
+    instrument_id: id,
+    instrument_label: String(raw.instrument_label||"").trim(),
+    instrument_reason: String(raw.instrument_reason||"").trim(),
+    key_fifths: Math.max(-7,Math.min(7,(raw.key_fifths|0))),
+    time, tempo: (raw.tempo_bpm ?? raw.tempo)|0,
+    notes: [...(raw.notes||[]), ...(raw.notes_for_user?[raw.notes_for_user]:[]), ...notes].filter(Boolean),
+    staves,
+  };
+}
+
+/* ---------- conversion ---------- */
+function eachPitch(model, fn){ model.staves.forEach((st,si)=>st.measures.forEach((m,mi)=>m.events.forEach(ev=>ev.pitches.forEach(p=>fn(p,mi,si,ev))))); }
+function medianMidi(st){ const a=[]; st.measures.forEach(m=>m.events.forEach(e=>e.pitches.forEach(p=>a.push(midiOf(p))))); a.sort((x,y)=>x-y); return a.length?a[a.length>>1]:60; }
+function sourceInterval(model, src){
+  // A treble-8 clef with an unknown instrument means it sounds an octave below what's written.
+  if(src.id==="unknown" && model.staves.length && model.staves.every(s=>s.clef==="treble8")) return {d:-7,s:-12};
+  return {d:src.d, s:src.s};
+}
+function mapModel(model, iv, fifths, staves){
+  return {...model, key_fifths:fifths, staves: staves.map(st=>({clef:st.clef, measures: st.measures.map(m=>({events:m.events.map(ev=>({...ev, pitches:ev.pitches.map(p=>transposeP(p,iv.d,iv.s))}))}))}))};
+}
+function autoClef(tgt, st, i, count){
+  const med = medianMidi(st);
+  if(tgt.clef==="grand"||tgt.clef==="auto"){
+    if(count>1 && i===0) return "treble";
+    if(count>1 && i===count-1) return "bass";
+    return med>=60?"treble":"bass";
+  }
+  if(tgt.clef==="bass" && ["cello","bassoon","trombone","euphonium"].includes(tgt.id) && med>=67) return "tenor";
+  if(tgt.clef==="alto" && med>=74) return "treble";
+  return tgt.clef;
+}
+function convert(model, srcId, tgtId, opts){
+  const src = INST[srcId], tgt = INST[tgtId];
+  const sIv = sourceInterval(model, src);
+  let staves = model.staves;
+  if(staves.length>1 && opts.staves==="top") staves=[staves[0]];
+  if(staves.length>1 && opts.staves==="bottom") staves=[staves[staves.length-1]];
+  // Concert pitches of the chosen staves, for range checking.
+  const concert = [];
+  staves.forEach(st=>st.measures.forEach((m,mi)=>m.events.forEach(ev=>ev.pitches.forEach(p=>concert.push([midiOf(p)+sIv.s,mi])))));
+  let k = 0;
+  if(opts.octave==="auto"){
+    if(tgt.range && concert.length){
+      let best=Infinity;
+      for(const c of [0,1,-1,2,-2]){
+        const out = concert.filter(([m])=>m+12*c<tgt.range[0]||m+12*c>tgt.range[1]).length;
+        if(out<best){ best=out; k=c; }
+      }
+    }
+  } else k = +opts.octave;
+  const iv0 = {d:sIv.d-tgt.d+7*k, s:sIv.s-tgt.s+12*k};
+  const {fifths, iv} = transposeKey(model.key_fifths, iv0);
+  const out = mapModel(model, iv, fifths, staves);
+  out.staves.forEach((st,i)=>{ st.clef = opts.clef!=="auto" ? opts.clef : autoClef(tgt, st, i, out.staves.length); });
+  const oor = new Set();
+  if(tgt.range) concert.forEach(([m,mi])=>{ const c=m+12*k; if(c<tgt.range[0]||c>tgt.range[1]) oor.add(mi); });
+  return {model:out, k, iv, oor, tgt, src, sIv};
+}
+function concertModel(model, inst){
+  // For playback: concert pitch, C major spelling (every accidental explicit), simple clefs.
+  const iv = model===state.model ? sourceInterval(model, inst) : {d:inst.d, s:inst.s};
+  const m = mapModel(model, iv, 0, model.staves);
+  m.staves.forEach(st=>{ st.clef = medianMidi(st)>=57?"treble":"bass"; });
+  return m;
+}
+
+/* ---------- ABC notation (for drawing and playing with abcjs) ---------- */
+function abcNote(p){ const L=LETTERS[p.li]; return p.oct>=5 ? L.toLowerCase()+"'".repeat(p.oct-5) : L+",".repeat(Math.max(0,4-p.oct)); }
+const ABC_ACC = {"-2":"__","-1":"_","0":"=","1":"^","2":"^^"};
+function measureAbc(meas, keyAlt, time, mi, oorMeasures){
+  const mlen = measureLen128(time), beat = beat384(time);
+  if(!meas.events.length) return `z${mlen}`;
+  const acc = {};
+  let out="", pos=0, prev=null, tripLeft=0;
+  const evs = meas.events;
+  evs.forEach((ev,i)=>{
+    let prefix="";
+    if(ev.triplet){
+      if(tripLeft===0){
+        let min=Infinity; for(let j=i;j<evs.length&&evs[j].triplet;j++) min=Math.min(min,len128(evs[j]));
+        let sum=0, n=0; for(let j=i;j<evs.length&&evs[j].triplet;j++){ sum+=len128(evs[j]); n++; if(sum>=3*min) break; }
+        prefix=`(3:2:${n}`; tripLeft=n;
+      }
+    } else tripLeft=0;
+    const L = len128(ev), ls = L===1?"":String(L);
+    let tok;
+    if(ev.rest) tok = "z"+ls;
+    else {
+      const notes = ev.pitches.map(p=>{
+        const k = p.li+","+p.oct, cur = (k in acc)?acc[k]:keyAlt[p.li];
+        let a=""; if(p.alt!==cur){ a=ABC_ACC[p.alt]; acc[k]=p.alt; }
+        return a+abcNote(p);
+      });
+      tok = (notes.length>1?"["+notes.join("")+"]":notes[0])+ls+(ev.tie?"-":"");
+    }
+    const beamable = !ev.rest && L<32;
+    const group = Math.floor(pos/beat+1e-6);
+    const join = prev && beamable && prev.beamable && group===prev.group && !prefix;
+    out += (out&&!join?" ":"")+prefix+tok;
+    prev = {beamable, group};
+    pos += pos384(ev);
+    if(ev.triplet) tripLeft--;
+  });
+  return out;
+}
+function toAbc(model, {title="", subtitle="", name="", piano=false, program=null, forPlay=false, per=4}={}){
+  const keyAlt = keyAlters(model.key_fifths);
+  const n = model.staves.length ? model.staves[0].measures.length : 0;
+  let s = `X:1\n`;
+  if(!forPlay){ if(title) s+=`T:${title.replace(/\n/g," ")}\n`; if(subtitle) s+=`T:${subtitle}\n`; }
+  s += `M:${model.time.num}/${model.time.den}\nL:1/128\n`;
+  if(model.tempo>0) s+=`Q:1/4=${model.tempo}\n`; else if(forPlay) s+=`Q:1/4=96\n`;
+  if(program!==null) s+=`%%MIDI program ${program}\n`;
+  if(model.staves.length>1) s+=`%%score ${piano?"{":"("}${model.staves.map((_,i)=>i+1).join(" ")}${piano?"}":")"}\n`;
+  s += `K:${ABC_KEY[model.key_fifths+7]}\n`;
+  for(let start=0; start<n; start+=per){
+    model.staves.forEach((st,si)=>{
+      const clef = st.clef==="treble8"?"treble-8":st.clef;
+      s += start===0 ? `V:${si+1} clef=${clef}${si===0&&name&&!forPlay?` name="${name.replace(/"/g,"'")}"`:""}\n` : `V:${si+1}\n`;
+      const bars = [];
+      for(let mi=start; mi<Math.min(n,start+per); mi++) bars.push(measureAbc(st.measures[mi], keyAlt, model.time, mi));
+      s += bars.join(" | ") + (start+per>=n?" |]":" |") + "\n";
+    });
+  }
+  return s;
+}
+// Phones get two measures per line on a narrower staff, so the notes stay readable.
+const narrow = () => window.innerWidth < 600;
+const perLine = () => narrow() ? 2 : 4;
+function render(el, abc, oor){
+  if(!window.ABCJS){ el.innerHTML = `<p class="notice err">The music drawing library didn't load. Check your connection and reload the page.</p>`; return null; }
+  const vo = ABCJS.renderAbc(el, abc, {responsive:"resize", add_classes:true, staffwidth:narrow()?420:760, paddingleft:4, paddingright:4, paddingtop:8, paddingbottom:8})[0];
+  if(oor && oor.size){
+    // Colour notes in measures that leave the instrument's range.
+    el.querySelectorAll(".abcjs-note").forEach(g=>{
+      const m = [...g.classList].map(c=>/^abcjs-mm(\d+)$/.exec(c)).find(Boolean);
+      if(m && oor.has(+m[1])) g.classList.add("oor");
+    });
+  }
+  return vo;
+}
+
+/* ---------- MusicXML export ---------- */
+const CLEF_XML = {treble:["G",2,0],bass:["F",4,0],alto:["C",3,0],tenor:["C",4,0],treble8:["G",2,-1]};
+function toMusicXML(model, inst, title){
+  const x = s => esc(s);
+  const div = 96; // per quarter note; 1/128 note = 3
+  const n = model.staves[0].measures.length, N = model.staves.length;
+  const mlen = measureLen128(model.time)*3;
+  let parts = "";
+  const tieOpen = model.staves.map(()=>new Set());
+  for(let mi=0; mi<n; mi++){
+    let mx = `<measure number="${mi+1}">`;
+    if(mi===0){
+      mx += `<attributes><divisions>${div}</divisions><key><fifths>${model.key_fifths}</fifths></key><time><beats>${model.time.num}</beats><beat-type>${model.time.den}</beat-type></time>`;
+      if(N>1) mx += `<staves>${N}</staves>`;
+      model.staves.forEach((st,si)=>{ const [sign,line,oc]=CLEF_XML[st.clef]||CLEF_XML.treble; mx += `<clef${N>1?` number="${si+1}"`:""}><sign>${sign}</sign><line>${line}</line>${oc?`<clef-octave-change>${oc}</clef-octave-change>`:""}</clef>`; });
+      if(inst.d||inst.s) mx += `<transpose><diatonic>${inst.d}</diatonic><chromatic>${inst.s}</chromatic></transpose>`;
+      mx += `</attributes>`;
+      if(model.tempo>0) mx += `<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${model.tempo}</per-minute></metronome></direction-type><sound tempo="${model.tempo}"/></direction>`;
+    }
+    model.staves.forEach((st,si)=>{
+      const evs = st.measures[mi].events; let total=0;
+      const staffTag = N>1?`<staff>${si+1}</staff>`:"";
+      if(!evs.length){ mx += `<note><rest measure="yes"/><duration>${mlen}</duration><voice>${si+1}</voice>${staffTag}</note>`; total=mlen; }
+      evs.forEach(ev=>{
+        const dur = ev.triplet ? len128(ev)*2 : len128(ev)*3; total+=dur;
+        const tm = ev.triplet ? `<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>` : "";
+        const dots = "<dot/>".repeat(ev.dots);
+        if(ev.rest){ mx += `<note><rest/><duration>${dur}</duration><voice>${si+1}</voice><type>${DUR_NAME[ev.dur]}</type>${dots}${tm}${staffTag}</note>`; tieOpen[si].clear(); return; }
+        const nextOpen = new Set();
+        ev.pitches.forEach((p,pi)=>{
+          const key = midiOf(p), stop = tieOpen[si].has(key), start = ev.tie;
+          if(start) nextOpen.add(key);
+          mx += `<note>${pi?"<chord/>":""}<pitch><step>${LETTERS[p.li]}</step>${p.alt?`<alter>${p.alt}</alter>`:""}<octave>${p.oct}</octave></pitch><duration>${dur}</duration>`+
+            `${stop?'<tie type="stop"/>':""}${start?'<tie type="start"/>':""}<voice>${si+1}</voice><type>${DUR_NAME[ev.dur]}</type>${dots}${tm}${staffTag}`+
+            `${stop||start?`<notations>${stop?'<tied type="stop"/>':""}${start?'<tied type="start"/>':""}</notations>`:""}</note>`;
+        });
+        tieOpen[si] = nextOpen;
+      });
+      if(si<N-1) mx += `<backup><duration>${total}</duration></backup>`;
+    });
+    parts += mx + `</measure>`;
+  }
+  return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">\n`+
+    `<score-partwise version="4.0"><work><work-title>${x(title||"Untitled")}</work-title></work><identification><encoding><software>Clef Hanger</software></encoding></identification>`+
+    `<part-list><score-part id="P1"><part-name>${x(inst.name)}</part-name></score-part></part-list><part id="P1">${parts}</part></score-partwise>\n`;
+}
+
+/* ---------- MusicXML import ---------- */
+const XML_TYPE = {breve:"w",whole:"w",half:"h",quarter:"q",eighth:"8","16th":"16","32nd":"32","64th":"64","128th":"64"};
+function guessInstrument(name, clef, transpose){
+  const n = (name||"").toLowerCase().replace(/♭/g,"b").replace(/♯/g,"#");
+  const has = (...w) => w.some(s=>n.includes(s));
+  if(has("piano","keyboard","pno")) return "piano";
+  if(has("piccolo")) return "piccolo";
+  if(has("bass clarinet","b. cl")) return "bass_clarinet";
+  if(has("clarinet","clar","cl.")) return /\bin a\b| a\b/.test(n) ? "clarinet_a" : /\b(e-?flat|eb)\b/.test(n) ? "clarinet_eb" : "clarinet_bb";
+  if(has("soprano sax")) return "soprano_sax";
+  if(has("alto sax","a. sax","alto saxophone")) return "alto_sax";
+  if(has("tenor sax","t. sax","tenor saxophone")) return "tenor_sax";
+  if(has("bari","baritone sax")) return has("sax")||!has("baritone")?"bari_sax":(clef==="bass"?"euphonium":"baritone_tc");
+  if(has("baritone")) return clef==="bass"?"euphonium":"baritone_tc";
+  if(has("flute","fl.")) return "flute";
+  if(has("oboe","ob.")) return "oboe";
+  if(has("bassoon","bsn","fagott")) return "bassoon";
+  if(has("trumpet","tpt","cornet","flugel")) return "trumpet";
+  if(has("horn","hn.")) return "horn";
+  if(has("trombone","tbn")) return "trombone";
+  if(has("euphonium","euph")) return "euphonium";
+  if(has("tuba")) return "tuba";
+  if(has("violin","vln","vn.","fiddle")) return "violin";
+  if(has("viola","vla")) return "viola";
+  if(has("cello","violoncello","vc.")) return "cello";
+  if(has("contrabass","double bass","string bass","upright bass","kontrabass")) return "double_bass";
+  if(has("bass guitar","electric bass","e. bass")) return "bass_guitar";
+  if(has("guitar","gtr")) return "guitar";
+  if(has("soprano")) return "soprano";
+  if(has("alto")) return "alto";
+  if(has("tenor")) return "tenor";
+  if(has("bass")) return clef==="bass"?"bass_voice":"unknown";
+  if(has("voice","vocal","voix","melody","singer")) return "soprano";
+  const byT = {"-2":"clarinet_bb","-3":"clarinet_a","-9":"alto_sax","-7":"horn","-14":"tenor_sax","-21":"bari_sax","-12":"guitar","12":"piccolo"};
+  if(transpose && byT[transpose]) return byT[transpose];
+  return "unknown";
+}
+function parseMusicXML(text){
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  if(doc.querySelector("parsererror")) throw new Error("That file isn't valid MusicXML.");
+  const root = doc.documentElement;
+  if(root.nodeName==="score-timewise") throw new Error("This MusicXML file uses the rare \"timewise\" layout. Re-export it from your notation program.");
+  if(root.nodeName!=="score-partwise") throw new Error("That file isn't a MusicXML score.");
+  const kid = (el,name) => el && [...el.children].find(c=>c.nodeName===name);
+  const txt = (el,name) => { const c=kid(el,name); return c?c.textContent.trim():null; };
+  const title = (doc.querySelector("work > work-title")||doc.querySelector("movement-title")||{}).textContent||"";
+  const names = {};
+  doc.querySelectorAll("part-list > score-part").forEach(sp=>{ names[sp.getAttribute("id")] = txt(sp,"part-name")||txt(kid(sp,"score-instrument"),"instrument-name")||""; });
+  const parts = [];
+  [...root.children].filter(c=>c.nodeName==="part").forEach(part=>{
+    let fifths=null, time=null, tempo=0, nStaves=1, transpose=null, divisions=1;
+    const staves=[]; const voiceOf={};
+    const ensure = (si,mi) => { while(staves.length<=si) staves.push({clef:"treble",measures:[],clefSet:false}); while(staves[si].measures.length<=mi) staves[si].measures.push({events:[]}); return staves[si].measures[mi]; };
+    [...part.children].filter(c=>c.nodeName==="measure").forEach((meas,mi)=>{
+      for(let si=0;si<nStaves;si++) ensure(si,mi);
+      [...meas.children].forEach(el=>{
+        if(el.nodeName==="attributes"){
+          const dv = txt(el,"divisions"); if(dv) divisions=+dv||1;
+          const st = txt(el,"staves"); if(st){ nStaves=+st||1; for(let si=0;si<nStaves;si++) ensure(si,mi); }
+          const k = kid(el,"key"); if(k && fifths===null && txt(k,"fifths")!==null) fifths=+txt(k,"fifths");
+          const t = kid(el,"time"); if(t && !time && txt(t,"beats")) time={num:parseInt(txt(t,"beats"))||4, den:+txt(t,"beat-type")||4};
+          const tr = kid(el,"transpose"); if(tr && transpose===null) transpose = txt(tr,"chromatic");
+          [...el.children].filter(c=>c.nodeName==="clef").forEach(c=>{
+            const si=(+c.getAttribute("number")||1)-1; ensure(si,mi);
+            if(staves[si].clefSet) return;
+            const sign=txt(c,"sign"), line=+txt(c,"line"), oc=+(txt(c,"clef-octave-change")||0);
+            staves[si].clef = sign==="F"?"bass" : sign==="C"?(line===4?"tenor":"alto") : (oc===-1?"treble8":"treble");
+            staves[si].clefSet = true;
+          });
+        } else if(el.nodeName==="direction" || el.nodeName==="sound"){
+          const snd = el.nodeName==="sound"?el:el.querySelector("sound"); if(snd && !tempo && snd.getAttribute("tempo")) tempo=Math.round(+snd.getAttribute("tempo"));
+        } else if(el.nodeName==="note"){
+          if(kid(el,"grace")||kid(el,"cue")) return;
+          const si = (+txt(el,"staff")||1)-1; const m = ensure(si,mi);
+          const voice = txt(el,"voice")||"1";
+          if(voiceOf[si]===undefined) voiceOf[si]=voice;
+          if(voiceOf[si]!==voice) return;
+          const isChord = !!kid(el,"chord");
+          const pitchEl = kid(el,"pitch");
+          const p = pitchEl ? {li:LETTERS.indexOf(txt(pitchEl,"step")), alt:Math.round(+(txt(pitchEl,"alter")||0)), oct:+txt(pitchEl,"octave")} : null;
+          if(isChord && p && m.events.length){ m.events[m.events.length-1].pitches.push(p); return; }
+          let dur = XML_TYPE[txt(el,"type")];
+          let dots = [...el.children].filter(c=>c.nodeName==="dot").length;
+          if(!dur){
+            const q = (+txt(el,"duration")||0)/divisions; // in quarters
+            const table=[[4,"w",0],[3,"h",1],[2,"h",0],[1.5,"q",1],[1,"q",0],[.75,"8",1],[.5,"8",0],[.25,"16",0],[.125,"32",0]];
+            const hit = table.find(([v])=>Math.abs(v-q)<1e-3) || table[0];
+            dur=hit[1]; dots=hit[2];
+            if(kid(el,"rest") && q>4){ dur="w"; dots=0; }
+          }
+          const tmod = kid(el,"time-modification");
+          const triplet = !!tmod && txt(tmod,"actual-notes")==="3" && txt(tmod,"normal-notes")==="2";
+          const tie = [...el.children].some(c=>c.nodeName==="tie"&&c.getAttribute("type")==="start");
+          m.events.push({rest:!p, pitches:p?[p]:[], dur, dots, triplet, tie});
+        }
+      });
+    });
+    const clef0 = staves[0]?staves[0].clef:"treble";
+    const nm = names[part.getAttribute("id")]||"";
+    const id = guessInstrument(nm, clef0, transpose);
+    parts.push({ name: nm || `Part ${parts.length+1}`, raw: {
+      title, instrument_id:id, instrument_label:nm,
+      instrument_reason: nm ? `From the part name "${nm}" in the file.` : (id!=="unknown"?"From the transposition in the file.":"The file doesn't name the instrument."),
+      key_fifths: fifths||0, time: time||{num:4,den:4}, tempo, staves }});
+  });
+  if(!parts.length || !parts.some(p=>p.raw.staves.length)) throw new Error("No notes found in that file.");
+  return parts;
+}
+
+/* ---------- reading an image or PDF with Claude ---------- */
+const ID_LIST = INSTRUMENTS.map(i=>i.id);
+const EVENT_SCHEMA = {type:"object", additionalProperties:false, required:["rest","pitches","duration","dots","triplet","tie_to_next"], properties:{
+  rest:{type:"boolean"},
+  pitches:{type:"array", items:{type:"string"}, description:"Written pitches, lowest first, e.g. \"F#4\". Empty for a rest."},
+  duration:{type:"string", enum:["w","h","q","8","16","32","64"]},
+  dots:{type:"integer"},
+  triplet:{type:"boolean"},
+  tie_to_next:{type:"boolean"},
+}};
+const SCHEMA = {type:"object", additionalProperties:false,
+  required:["title","instrument_label","instrument_id","instrument_reason","key_fifths","time_signature","tempo_bpm","staves","notes_for_user"],
+  properties:{
+    title:{type:"string"},
+    instrument_label:{type:"string"},
+    instrument_id:{type:"string", enum:ID_LIST},
+    instrument_reason:{type:"string"},
+    key_fifths:{type:"integer"},
+    time_signature:{type:"string"},
+    tempo_bpm:{type:"integer"},
+    staves:{type:"array", items:{type:"object", additionalProperties:false, required:["clef","measures"], properties:{
+      clef:{type:"string", enum:["treble","bass","alto","tenor","treble8"]},
+      measures:{type:"array", items:{type:"object", additionalProperties:false, required:["events"], properties:{events:{type:"array", items:EVENT_SCHEMA}}}},
+    }}},
+    notes_for_user:{type:"string"},
+  }};
+const SYSTEM_PROMPT = `You are an expert music copyist. You transcribe a photo, scan or PDF of sheet music into structured data for an app that rewrites the music for another clef or instrument. Getting every pitch and rhythm right matters more than anything else, so read each measure carefully and check that its rhythms add up to the time signature.
+
+What to transcribe:
+- One instrument part. For piano or any other grand-staff part, include both staves, top staff first. If the page is a score for several different instruments, transcribe only the top instrument and say so in notes_for_user.
+- Each staff's clef: "treble", "bass", "alto" (C clef centered on the middle line), "tenor" (C clef on the fourth line) or "treble8" (treble clef with a small 8 below it). Read the pitches of a treble8 staff as if it were a plain treble clef.
+- Every staff has the same number of measures, one entry per printed measure, in order across all systems and pages. Don't expand repeats. Keep a pickup measure as printed. A whole-measure rest is one rest event as long as the measure.
+
+Notes:
+- Pitches are the written pitches in scientific pitch notation, with middle C as C4: "F#4", "Bb3", "C##5", "Ebb4", "G5". Apply the key signature and every accidental in force (an accidental lasts to the end of its measure on that line or space, and a tie carries it over the barline). Never transpose.
+- duration is the printed note value: w, h, q, 8, 16, 32 or 64, with dots counted separately. Notes in a triplet (three in the time of two) have triplet: true and keep their printed value, so an eighth-note triplet is three "8" events with triplet true.
+- A chord is one event with all its pitches, lowest first. A rest has rest: true and no pitches.
+- If one staff has two voices, merge them into chords where they move together; otherwise transcribe the upper voice only.
+- tie_to_next is true when a tie joins this note to the next note of the same pitch.
+- Leave out grace notes, lyrics, dynamics, articulations, chord symbols and fingerings.
+
+Header:
+- key_fifths: number of sharps as a positive number, or flats as a negative number (two sharps = 2, three flats = -3).
+- time_signature like "4/4", "3/4" or "6/8". Common time is "4/4" and cut time is "2/2".
+- tempo_bpm: the printed metronome mark in quarter notes per minute, or 0 if there is none.
+- title: the printed title, or "".
+- instrument_label: the instrument name printed on the page, exactly as written, or "".
+- instrument_id: the best match for what the part is written for. If the page doesn't name an instrument, infer it from the clef, range, title and style, and use "unknown" if you really can't tell. Pick "piano" for a grand staff unless it's clearly something else.
+- instrument_reason: one short sentence a musician would understand, saying how you decided.
+- notes_for_user: one or two short sentences about anything you were unsure of, such as a blurry or cut-off measure, or "" if the page was clear. If the image isn't sheet music, return no staves and say so here.`;
+
+async function fileToImageBlock(file){
+  const url = URL.createObjectURL(file);
+  try{
+    const img = new Image(); img.src = url; await img.decode();
+    const max = 2400, sc = Math.min(1, max/Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth*sc); c.height = Math.round(img.naturalHeight*sc);
+    const ctx = c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,c.height); ctx.drawImage(img,0,0,c.width,c.height);
+    let data = c.toDataURL("image/jpeg",0.92).split(",")[1];
+    if(data.length>4_800_000) data = c.toDataURL("image/jpeg",0.75).split(",")[1];
+    return {type:"image", source:{type:"base64", media_type:"image/jpeg", data}};
+  } finally { URL.revokeObjectURL(url); }
+}
+function fileToBase64(file){
+  return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]); r.onerror=()=>rej(r.error); r.readAsDataURL(file); });
+}
+let activeStream = null;
+async function readWithClaude(file, apiKey, onProgress){
+  let sdk;
+  try{ sdk = await import(SDK_URL); }
+  catch(err){ console.error(err); throw new Error("Couldn't load the Claude library. Check your internet connection and try again."); }
+  const Anthropic = sdk.default;
+  const client = new Anthropic({apiKey, dangerouslyAllowBrowser:true});
+  const isPdf = file.type==="application/pdf" || /\.pdf$/i.test(file.name);
+  const block = isPdf
+    ? {type:"document", source:{type:"base64", media_type:"application/pdf", data: await fileToBase64(file)}}
+    : await fileToImageBlock(file);
+  let chars = 0, measures = 0;
+  try{
+    const stream = client.beta.messages.stream({
+      model: MODEL,
+      max_tokens: 64000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: {effort:"high", format:{type:"json_schema", schema:SCHEMA}},
+      system: SYSTEM_PROMPT,
+      messages: [{role:"user", content:[block, {type:"text", text:"Transcribe this sheet music."}]}],
+    });
+    activeStream = stream;
+    stream.on("text", t => { chars += t.length; measures += (t.match(/"events"/g)||[]).length; onProgress({chars, measures}); });
+    const msg = await stream.finalMessage();
+    if(msg.stop_reason==="refusal") throw new Error("Claude declined to read this image. Try a different photo.");
+    if(msg.stop_reason==="max_tokens") throw new Error("That's more music than fits in one read. Try one page at a time.");
+    const text = msg.content.filter(b=>b.type==="text").map(b=>b.text).join("");
+    try{ return JSON.parse(text); } catch{ throw new Error("Claude's answer couldn't be understood. Please try again."); }
+  } catch(e){
+    if(e instanceof sdk.APIUserAbortError) throw new Error("Cancelled.");
+    if(e instanceof sdk.AuthenticationError) throw Object.assign(new Error("That API key didn't work. Check it and try again."),{keyProblem:true});
+    if(e instanceof sdk.PermissionDeniedError) throw Object.assign(new Error("That API key isn't allowed to use this model."),{keyProblem:true});
+    if(e instanceof sdk.RateLimitError) throw new Error("Your Anthropic account hit its rate limit. Wait a minute and try again.");
+    if(e instanceof sdk.BadRequestError){
+      const m = String(e.message||"");
+      if(/credit|billing|balance/i.test(m)) throw new Error("Your Anthropic account is out of credit. Add some in the Anthropic Console.");
+      throw new Error("Anthropic couldn't process that file. Try a smaller or clearer image. ("+m.slice(0,160)+")");
+    }
+    if(e instanceof sdk.APIConnectionError) throw new Error("Couldn't reach Anthropic. Check your internet connection.");
+    if(e instanceof sdk.APIError) throw new Error(`Anthropic returned an error (${e.status||"unknown"}). Please try again.`);
+    throw e;
+  } finally { activeStream = null; }
+}
+
+/* ---------- sample: Ode to Joy for B♭ clarinet (public domain) ---------- */
+const q = (p,extra={}) => ({rest:false,pitches:[p],duration:"q",dots:0,triplet:false,tie_to_next:false,...extra});
+const SAMPLE = {
+  title:"Ode to Joy", instrument_id:"clarinet_bb", instrument_label:"Clarinet in B♭",
+  instrument_reason:"Sample piece: Beethoven's Ode to Joy, written for B♭ clarinet.",
+  key_fifths:2, time_signature:"4/4", tempo_bpm:108, notes_for_user:"",
+  staves:[{clef:"treble", measures:[
+    ["F#4","F#4","G4","A4"],["A4","G4","F#4","E4"],["D4","D4","E4","F#4"],
+    [q("F#4",{dots:1}),q("E4",{duration:"8"}),q("E4",{duration:"h"})],
+    ["F#4","F#4","G4","A4"],["A4","G4","F#4","E4"],["D4","D4","E4","F#4"],
+    [q("E4",{dots:1}),q("D4",{duration:"8"}),q("D4",{duration:"h"})],
+  ].map(m=>({events:m.map(e=>typeof e==="string"?q(e):e)}))}],
+};
+
+/* ---------- UI ---------- */
+const state = { model:null, parts:null, file:null, result:null, fromImage:false };
+function getKey(){ try{ return localStorage.getItem(KEY_STORE)||sessionKey||""; }catch{ return sessionKey||""; } }
+let sessionKey = "";
+function msg(el, kind, html){ $(el).innerHTML = html ? `<div class="notice ${kind}">${html}</div>` : ""; }
+
+function fillInstrumentSelect(sel, includeUnknown){
+  sel.innerHTML = "";
+  let group=null, og=null;
+  INSTRUMENTS.forEach(i=>{
+    if(!includeUnknown && i.id==="unknown") return;
+    if(i.group!==group){ group=i.group; og=document.createElement("optgroup"); og.label=group; sel.appendChild(og); }
+    const o=document.createElement("option"); o.value=i.id; o.textContent=i.name; og.appendChild(o);
+  });
+}
+fillInstrumentSelect($("#srcSel"), true);
+fillInstrumentSelect($("#tgtSel"), false);
+
+function defaultTarget(src, model){
+  const clef = model.staves[0]?.clef;
+  if(src.d||src.s) return clef==="bass"?"cello":"flute";
+  if(src.id==="piano") return "flute";
+  if(clef==="bass") return src.id==="cello"?"trombone":"cello";
+  if(clef==="alto") return "violin";
+  return "clarinet_bb";
+}
+
+function showFile(file){
+  state.file = file;
+  $("#preview").classList.remove("hidden");
+  $("#fileName").textContent = file.name || "Photo";
+  const isPdf = file.type==="application/pdf" || /\.pdf$/i.test(file.name);
+  const img = $("#previewImg");
+  if(isPdf){ img.classList.add("hidden"); $("#fileHint").textContent = "PDF · every page will be read"; }
+  else { img.classList.remove("hidden"); img.src = URL.createObjectURL(file); $("#fileHint").textContent = "Clear, flat, well-lit photos read best. Usually takes 30–90 seconds."; }
+  $("#readBtn").disabled = false;
+  msg("#inputMsg");
+}
+
+async function handleFile(file){
+  if(!file) return;
+  msg("#inputMsg");
+  if(/\.mxl$/i.test(file.name)){ msg("#inputMsg","err","Compressed .mxl files aren't supported yet. In your notation program, export as uncompressed MusicXML (<b>.musicxml</b>) and open that."); return; }
+  if(/\.(musicxml|xml)$/i.test(file.name) || /xml/.test(file.type)){
+    try{
+      const parts = parseMusicXML(await file.text());
+      $("#preview").classList.add("hidden");
+      state.fromImage = false;
+      loadParts(parts, file.name.replace(/\.[^.]+$/,""));
+      msg("#inputMsg","info",`Opened <b>${esc(file.name)}</b>.`);
+    } catch(e){ msg("#inputMsg","err",esc(e.message)); }
+    return;
+  }
+  if(file.type.startsWith("image/") || file.type==="application/pdf" || /\.(pdf|jpe?g|png|webp|gif|heic)$/i.test(file.name)){ showFile(file); return; }
+  msg("#inputMsg","err","Choose a photo, a PDF or a MusicXML file.");
+}
+
+function loadParts(parts, fallbackTitle){
+  state.parts = parts;
+  const sel = $("#partSel"); sel.innerHTML = "";
+  parts.forEach((p,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=p.name; sel.appendChild(o); });
+  $("#partWrap").classList.toggle("hidden", parts.length<2);
+  loadModel(parts[0].raw, fallbackTitle);
+}
+
+function loadModel(raw, fallbackTitle=""){
+  const m = normalize(raw);
+  if(!m.title) m.title = fallbackTitle;
+  if(!m.staves.length){
+    msg("#inputMsg","err", esc(m.notes[0] || "No music was found. Try a clearer photo of one page."));
+    $("#cardFound").classList.add("hidden"); $("#cardOut").classList.add("hidden");
+    return;
+  }
+  state.model = m;
+  const src = INST[m.instrument_id];
+  $("#srcSel").value = m.instrument_id;
+  $("#srcReason").textContent = m.instrument_reason || (m.instrument_label?`The page says "${m.instrument_label}".`:"");
+  const clefs = m.staves.map(s=>s.clef);
+  $("#fClef").textContent = clefs.length===2 && clefs[0]==="treble" && clefs[1]==="bass" ? "Treble + bass (grand staff)" :
+    clefs.map(c=>CLEF_NAME[c]).join(" + ") + (clefs.length===1?" clef":" clefs");
+  $("#fKey").textContent = keyLabel(m.key_fifths);
+  const n = m.staves[0].measures.length;
+  $("#fTime").textContent = `${m.time.num}/${m.time.den} · ${n} measure${n===1?"":"s"}${m.tempo?` · ${m.tempo} bpm`:""}`;
+  msg("#foundMsg", "warn", m.notes.length ? (m.notes.length===1?esc(m.notes[0]):`<ul>${m.notes.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`) : "");
+  $("#stavesWrap").classList.toggle("hidden", m.staves.length<2);
+  $("#controls").classList.toggle("with-staves", m.staves.length>1);
+  $("#tgtSel").value = defaultTarget(src, m);
+  $("#stavesSel").value = $("#tgtSel").value==="piano" ? "all" : "top";
+  $("#clefSel").value = "auto"; $("#octSel").value = "auto";
+  $("#cardFound").classList.remove("hidden"); $("#cardOut").classList.remove("hidden");
+  renderOriginal();
+  update();
+  $("#cardFound").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function renderOriginal(){
+  const m = state.model, src = INST[$("#srcSel").value];
+  render($("#origScore"), toAbc(m, {title:m.title, subtitle:`as written for ${src.name}`, name:src.id==="unknown"?"":src.name, piano:src.id==="piano", per:perLine()}));
+}
+
+function update(){
+  stopPlayback();
+  const m = state.model; if(!m) return;
+  const srcId = $("#srcSel").value, tgtId = $("#tgtSel").value;
+  const r = convert(m, srcId, tgtId, {clef:$("#clefSel").value, octave:$("#octSel").value, staves:$("#stavesSel").value});
+  state.result = r;
+  const {tgt, src} = r;
+  render($("#outScore"), toAbc(r.model, {title:m.title, subtitle:`for ${tgt.name}`, name:tgt.name, piano:tgt.id==="piano", per:perLine()}), r.oor);
+  // Summary sentence
+  const ivName = intervalName(r.iv.d, r.iv.s);
+  const clefs = [...new Set(r.model.staves.map(s=>CLEF_NAME[s.clef].toLowerCase()))].join(" and ");
+  let s = ivName ? `Written <b>${ivName}</b>` : `Same written notes`;
+  s += ` · ${clefs} clef${r.model.staves.length>1&&clefs.includes(" and ")?"s":""} · key of ${MAJOR[r.model.key_fifths+7]} major / ${MINOR[r.model.key_fifths+7]} minor`;
+  if(src.id===tgt.id) s += ".";
+  else if((src.s!==tgt.s) || r.k) s += `. It sounds ${r.k===0?"exactly the same as the original":r.k>0?`${r.k===1?"an octave":"two octaves"} higher than the original`:`${r.k===-1?"an octave":"two octaves"} lower than the original`}.`;
+  else s += `. Same concert pitch${r.k?"":" as the original"}.`;
+  $("#summary").innerHTML = s;
+  const notes = [];
+  if($("#octSel").value==="auto" && r.k) notes.push(`Moved ${r.k>0?"up":"down"} ${Math.abs(r.k)===1?"an octave":"two octaves"} to fit the ${tgt.name.replace(/ in .*/,"").toLowerCase()}'s range.`);
+  if(r.oor.size){ const list=[...r.oor].sort((a,b)=>a-b).map(i=>i+1); notes.push(`Some notes in measure${list.length>1?"s":""} ${list.slice(0,10).join(", ")}${list.length>10?"…":""} are outside the ${tgt.name.replace(/ in .*/,"").toLowerCase()}'s usual range (shown in red). Try another octave.`); }
+  if(m.staves.length>1 && $("#stavesSel").value==="all" && tgt.id!=="piano") notes.push(`This music has ${m.staves.length} staves. A ${tgt.name.replace(/ in .*/,"").toLowerCase()} usually plays just one, so choose "Top only" or "Bottom only" under Staves.`);
+  if(src.id==="unknown") notes.push(`We weren't sure what instrument this is for, so we treated it as concert pitch. Pick the right one under "Written for" if you know it.`);
+  msg("#outMsg","warn", notes.length ? (notes.length===1?notes[0]:`<ul>${notes.map(x=>`<li>${x}</li>`).join("")}</ul>`) : "");
+}
+
+/* ---------- playback ---------- */
+let synth = null, audioCtx = null, playTimer = null;
+function stopPlayback(){
+  if(synth){ try{ synth.stop(); }catch{} synth = null; }
+  clearTimeout(playTimer);
+  $("#playBtn").textContent = "▶ Play"; $("#playBtn").disabled = false;
+}
+async function play(){
+  if(synth){ stopPlayback(); return; }
+  if(!window.ABCJS || !ABCJS.synth.supportsAudio()){ msg("#outMsg","err","This browser can't play audio."); return; }
+  const r = state.result; if(!r) return;
+  const btn = $("#playBtn"); btn.disabled = true; btn.textContent = "Loading sounds…";
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    await audioCtx.resume();
+    const cm = concertModel(r.model, r.tgt);
+    const vo = ABCJS.renderAbc("playArea", toAbc(cm, {forPlay:true, program:r.tgt.program}))[0];
+    const s = new ABCJS.synth.CreateSynth();
+    await s.init({audioContext:audioCtx, visualObj:vo, options:{program:r.tgt.program}});
+    const {duration} = await s.prime();
+    s.start(); synth = s;
+    btn.disabled = false; btn.textContent = "■ Stop";
+    playTimer = setTimeout(stopPlayback, (duration||10)*1000+300);
+  } catch(e){
+    stopPlayback();
+    msg("#outMsg","err","Couldn't play the music. The instrument sounds load from the internet, so check your connection.");
+  }
+}
+
+/* ---------- reading flow ---------- */
+async function readMusic(){
+  const key = getKey();
+  if(!key){ openKey(true); return; }
+  const file = state.file; if(!file) return;
+  $("#readBtn").disabled = true;
+  $("#progress").classList.remove("hidden");
+  msg("#inputMsg");
+  const t0 = Date.now();
+  let last = {chars:0, measures:0};
+  const tick = () => {
+    const sec = Math.round((Date.now()-t0)/1000);
+    $("#progressText").textContent = last.chars ? `Writing down the notes… ${last.measures} measure${last.measures===1?"":"s"} so far` : "Looking at the page…";
+    $("#progressSub").textContent = `${sec}s`;
+  };
+  tick(); const iv = setInterval(tick, 1000);
+  try{
+    const raw = await readWithClaude(file, key, p=>{ last=p; });
+    state.fromImage = true;
+    $("#partWrap").classList.add("hidden");
+    state.parts = null;
+    loadModel(raw, (file.name||"").replace(/\.[^.]+$/,"").replace(/^(IMG|image|photo|scan)[-_ ]?\d*$/i,""));
+  } catch(e){
+    msg("#inputMsg","err", esc(e.message||String(e)));
+    if(e.keyProblem) openKey(false);
+  } finally {
+    clearInterval(iv);
+    $("#progress").classList.add("hidden");
+    $("#readBtn").disabled = false;
+  }
+}
+
+/* ---------- API key dialog ---------- */
+let readAfterSave = false;
+function openKey(thenRead){
+  readAfterSave = thenRead;
+  $("#keyInput").value = getKey();
+  $("#keyDlg").showModal();
+  $("#keyInput").focus();
+}
+$("#keyBtn").onclick = () => openKey(false);
+$("#keyCancel").onclick = () => $("#keyDlg").close();
+$("#keyClear").onclick = () => { try{ localStorage.removeItem(KEY_STORE); }catch{} sessionKey=""; $("#keyInput").value=""; };
+$("#keyForm").addEventListener("submit", e=>{
+  const v = $("#keyInput").value.trim();
+  if(!v){ e.preventDefault(); $("#keyInput").focus(); return; }
+  sessionKey = v;
+  try{ if($("#keyRemember").checked) localStorage.setItem(KEY_STORE, v); else localStorage.removeItem(KEY_STORE); }catch{}
+  if(readAfterSave) setTimeout(readMusic, 0);
+});
+
+/* ---------- wiring ---------- */
+$("#fileInput").onchange = e => { handleFile(e.target.files[0]); e.target.value=""; };
+$("#camInput").onchange = e => { handleFile(e.target.files[0]); e.target.value=""; };
+$("#sampleBtn").onclick = () => { $("#preview").classList.add("hidden"); state.fromImage=false; state.parts=null; $("#partWrap").classList.add("hidden"); msg("#inputMsg","info","Loaded the sample. Try converting it for a different instrument below."); loadModel(SAMPLE); };
+$("#readBtn").onclick = readMusic;
+$("#cancelBtn").onclick = () => { if(activeStream) activeStream.abort(); };
+$("#partSel").onchange = e => loadModel(state.parts[+e.target.value].raw, state.model?.title);
+$("#srcSel").onchange = () => { renderOriginal(); update(); };
+["#clefSel","#octSel","#stavesSel"].forEach(s=>$(s).onchange = update);
+$("#tgtSel").onchange = () => {
+  // Single-line instruments default to the top staff of piano music; piano gets every staff.
+  if(state.model && state.model.staves.length>1) $("#stavesSel").value = $("#tgtSel").value==="piano" ? "all" : "top";
+  update();
+};
+$("#playBtn").onclick = play;
+$("#printBtn").onclick = () => window.print();
+$("#xmlBtn").onclick = () => {
+  const r = state.result; if(!r) return;
+  const xml = toMusicXML(r.model, r.tgt, state.model.title);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([xml], {type:"application/vnd.recordare.musicxml+xml"}));
+  a.download = `${(state.model.title||"music").replace(/[^\w\- ]+/g,"").trim()||"music"} - ${r.tgt.name.replace(/[^\w\- ]+/g,"").trim()}.musicxml`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+};
+const drop = $("#drop");
+["dragenter","dragover"].forEach(t=>drop.addEventListener(t, e=>{ e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(t=>drop.addEventListener(t, e=>{ e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => handleFile(e.dataTransfer.files[0]));
+
+let wasNarrow = narrow();
+window.addEventListener("resize", () => { if(narrow()!==wasNarrow){ wasNarrow=narrow(); if(state.model){ renderOriginal(); update(); } } });
+
+// Exposed for testing in the console.
+window.clefHanger = {parsePitch, transposeP, transposeKey, intervalName, convert, normalize, toAbc, toMusicXML, parseMusicXML, state, SAMPLE};
+</script>
+</body>
+</html>
